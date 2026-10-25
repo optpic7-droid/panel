@@ -123,7 +123,21 @@ function requireDashboardSession(req, res) {
 }
 
 async function serveStatic(req, res, urlPath) {
-  const rel = urlPath === '/' ? '/index.html' : urlPath;
+  // The standalone demo is fully self-contained (inlined CSS + JS, no
+  // subresource or API calls): one GET / is enough to render the whole panel,
+  // which makes it robust through preview proxies that may drop follow-up
+  // requests to /styles.css or /app.js.
+  if (urlPath === '/' || urlPath === '/index.html' || urlPath === '/standalone') {
+    const standalone = path.join(HERE, '..', 'docs', 'petro-demo.html');
+    try {
+      const data = await readFile(standalone);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(data);
+    } catch {
+      // fall through to the classic multi-file dashboard below
+    }
+  }
+  const rel = urlPath === '/classic' ? '/index.html' : urlPath;
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
   if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   try {

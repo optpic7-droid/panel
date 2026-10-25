@@ -91,9 +91,22 @@ else
 fi
 rm -f /tmp/petro-demo.cookies
 
-# static UI
+# static UI - "/" must serve the fully self-contained standalone demo
 html=$(curl -s "$base/")
-if grep -q "Petro Panel" <<<"$html"; then ok "dashboard HTML served"; else bad "index.html"; fi
+if grep -q "Petro Panel" <<<"$html"; then ok "panel HTML served at /"; else bad "index.html"; fi
+if ! grep -qE '<(script|link|img)[^>]*(src|href)=' <<<"$html"; then
+    ok "served page needs zero subresource requests (proxy-proof)"
+else
+    bad "served page references external subresources"
+fi
+if grep -q "Run node-connect simulation" <<<"$html"; then
+    ok "served page contains the in-browser node-connect simulation"
+else
+    bad "simulation UI missing from served page"
+fi
+# classic multi-file dashboard still reachable
+code=$(curl -s -o /dev/null -w '%{http_code}' "$base/classic")
+expect_code "classic dashboard at /classic" 200 "$code"
 
 echo
 echo "Demo tests: ${pass} passed, ${fail} failed."
