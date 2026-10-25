@@ -1,0 +1,9 @@
+# Local installer configuration (contains secrets - never commit)
+.env
+/root/.petro-panel.env
+
+# Editor / OS noise
+*.swp
+.DS_Store
+__pycache__/
+*.pyc
