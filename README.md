@@ -47,6 +47,13 @@ sudo ./install.sh node               # registers the node over the panel API
 
 No arguments gives an interactive menu: `sudo ./install.sh`.
 
+### No shell access? Deploy from GitHub
+
+If you can't (or don't want to) run commands on the VPS directly, the included
+**GitHub Actions workflow** installs over SSH from GitHub's runners: store the
+VPS host/user/SSH key as repository secrets, then click **Run workflow**.
+Full setup: [docs/DEPLOY-GITHUB-ACTIONS.md](docs/DEPLOY-GITHUB-ACTIONS.md).
+
 ## What gets installed
 
 | Component | Version | Where |
@@ -66,6 +73,7 @@ Generated passwords are stored in `/root/.petro-panel.env` (mode 600).
 ```
 install.sh                     entrypoint (menu + subcommands)
 .env.example                   all configuration, documented
+.github/workflows/deploy.yml   optional GitHub Actions deploy over SSH
 scripts/
   lib.sh                       logging, OS detection, API helpers, secrets
   preflight.mjs                zero-dependency Node readiness checker
@@ -79,6 +87,7 @@ configs/
   wings/config.yml.example     annotated Wings configuration reference
 docs/
   INSTALL.md                   full step-by-step install
+  DEPLOY-GITHUB-ACTIONS.md     deploy to a VPS without touching its shell
   NODES.md                     connecting and troubleshooting nodes
   TROUBLESHOOTING.md           common failures and fixes
   SANDBOX-NOTES.md             what can/cannot run in restricted environments
