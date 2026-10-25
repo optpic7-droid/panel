@@ -49,6 +49,15 @@ bash tests/integration.sh
 echo "== demo server tests (runnable preview) =="
 bash tests/demo.sh
 
+echo "== standalone browser demo (docs/petro-demo.html) =="
+python3 - <<'PY'
+import re
+html = open('docs/petro-demo.html').read()
+open('/tmp/petro-standalone.js', 'w').write(re.search(r'<script>(.*?)</script>', html, re.S).group(1))
+PY
+node --check /tmp/petro-standalone.js && echo "  OK  standalone JS syntax"
+node tests/standalone-harness.mjs && echo "  OK  standalone mock API contract"
+
 echo "== config placeholders =="
 grep -q '__FQDN__' configs/nginx/pterodactyl.conf
 grep -q '__PHP_SOCKET__' configs/nginx/pterodactyl-ssl.conf

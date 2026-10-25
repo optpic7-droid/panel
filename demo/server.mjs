@@ -297,6 +297,12 @@ const server = http.createServer(async (req, res) => {
   const urlPath = u.pathname;
   const method = req.method;
 
+  // Access log: proves whether preview-proxy traffic reaches the process.
+  res.on('finish', () => {
+    console.log(`[${new Date().toISOString()}] ${method} ${urlPath} ` +
+      `-> ${res.statusCode} (host=${req.headers.host || '?'}, fwd=${req.headers['x-forwarded-for'] || 'direct'})`);
+  });
+
   try {
     if (urlPath === '/healthz' || urlPath === '/api/system') {
       return sendJson(res, 200, { name: 'petro-panel-demo', version: '1.11.10-demo', status: 'operational' });

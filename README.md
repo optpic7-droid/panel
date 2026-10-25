@@ -95,13 +95,20 @@ docs/
 tests/smoke.sh                 static validation (bash -n, shellcheck, node --check)
 ```
 
-## No server available? Try the runnable demo
+## No server available? Try the demos
 
-`node demo/server.mjs` starts a zero-dependency preview on a **random port**
-with a dashboard and an emulated Application API — the real
-`scripts/30-connect-node.sh` can register a node against it end-to-end. Login:
-`admin` / `petro-demo`. This is a demo of the API flow, not the production
-Pterodactyl binary (which needs PHP/MariaDB/Redis and a real VPS).
+- **Browser-only (recommended, nothing to install):** open
+  [`docs/petro-demo.html`](docs/petro-demo.html) — download the file and
+  double-click it. The whole panel (login, nodes, locations, allocations,
+  activity log) plus a one-click **node-connect simulation** runs in a single
+  browser tab with no server or network. See
+  [docs/STANDALONE-DEMO.md](docs/STANDALONE-DEMO.md).
+- **Node server:** `node demo/server.mjs` starts the same emulated
+  Application API as a real HTTP service on a random port, so the actual
+  `scripts/30-connect-node.sh` can register a node against it end-to-end.
+
+Both are demos of the API flow, not the production Pterodactyl binary (which
+needs PHP/MariaDB/Redis/Docker and a real VPS).
 
 ## Documentation
 
