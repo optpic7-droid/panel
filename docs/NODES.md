@@ -18,6 +18,13 @@ Application API and a websocket.
 
 ## 1. Create an Application API key on the panel
 
+**Automatic (recommended):** `sudo ./install.sh apikey` creates a
+full-permission key via tinker, prints it once and stores it in
+`/root/.petro-panel.env`. The `./install.sh all` flow runs this step itself,
+so all-in-one installs need no manual key handling.
+
+**Manual alternative:**
+
 1. Log in as administrator → **Admin → Application API → Create New Key**.
 2. Description: `node-connector`.
 3. Permissions: **write** on `Locations`, `Nodes`, `Allocations` (read on the

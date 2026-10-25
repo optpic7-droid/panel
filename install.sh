@@ -9,6 +9,7 @@
 #   sudo ./install.sh wings           # install Docker + Wings (a node) only
 #   sudo ./install.sh node            # register/connect this node to the panel
 #   sudo ./install.sh all             # panel + wings + connect (same machine)
+#   sudo ./install.sh apikey          # create/print a ptla_ Application API key
 #   sudo ./install.sh theme           # install Arix theme from ARIX_ZIP/URL
 #   sudo ./install.sh theme --uninstall  # restore the pre-theme backup
 #
@@ -45,17 +46,27 @@ run_theme() {
     bash "${SCRIPT_DIR}/scripts/40-theme-arix.sh" "$@"
 }
 
+run_apikey() {
+    bash "${SCRIPT_DIR}/scripts/35-create-api-key.sh" "$@"
+}
+
 run_all() {
     run_panel
     run_wings
-    if [[ -n "${APPLICATION_API_KEY:-}" ]]; then
-        run_node
-    else
-        echo
-        warn "APPLICATION_API_KEY not set - node connection skipped."
-        warn "Create an Application API key in the panel (Admin -> Application API),"
-        warn "put it in .env, then run: sudo ./install.sh node"
+
+    # Same-machine defaults so the node can connect without extra editing.
+    export NODE_FQDN="${NODE_FQDN:-$PANEL_FQDN}"
+    export ALLOCATION_IP="${ALLOCATION_IP:-$NODE_FQDN}"
+    export NODE_SCHEME="${NODE_SCHEME:-$([[ "${PANEL_SSL:-false}" == "true" ]] && echo https || echo http)}"
+    export PANEL_URL="${PANEL_URL:-$(panel_url)}"
+
+    if [[ -z "${APPLICATION_API_KEY:-}" ]]; then
+        log "No APPLICATION_API_KEY set - creating one on the installed panel"
+        export APPLICATION_API_KEY
+        APPLICATION_API_KEY=$(run_apikey | awk '/^ptla_/{print; exit}')
+        [[ "$APPLICATION_API_KEY" == ptla_* ]] || die "could not obtain an Application API key from the panel"
     fi
+    run_node
 }
 
 menu() {
@@ -88,6 +99,7 @@ main() {
         panel)              load_config; run_panel ;;
         wings)              load_config; run_wings ;;
         node|connect-node)  load_config; run_node ;;
+        apikey|api-key)     shift; load_config; run_apikey "$@" ;;
         theme|arix)         shift; load_config; run_theme "$@" ;;
         all)                load_config; run_all ;;
         -h|--help|help)     usage 0 ;;

@@ -125,6 +125,9 @@ else
     bad "allocation payload: $alloc_json"
 fi
 
+# shellcheck disable=SC1091
+source scripts/35-create-api-key.sh 2>/dev/null || true
+
 echo "== panel_url (custom port support) =="
 PANEL_FQDN="panel.example.com"
 PANEL_SSL="false"; PANEL_PORT="80"

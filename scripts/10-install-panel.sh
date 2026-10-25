@@ -11,17 +11,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib.sh"
 
-# External URL of the panel, including a non-standard port.
-panel_url() {
-    local scheme=http
-    [[ "${PANEL_SSL}" == "true" ]] && scheme=https
-    if [[ "${PANEL_PORT}" == "80" || ( "${PANEL_SSL}" == "true" && "${PANEL_PORT}" == "443" ) ]]; then
-        echo "${scheme}://${PANEL_FQDN}"
-    else
-        echo "${scheme}://${PANEL_FQDN}:${PANEL_PORT}"
-    fi
-}
-
 main() {
     load_config
     require_root

@@ -42,6 +42,14 @@ load_config() {
         warn "No .env file found at ${cfg} (cp .env.example .env). Using environment/default values."
     fi
 
+    # Generated secrets (DB/admin passwords, application API key) live here.
+    if [[ -r /root/.petro-panel.env ]]; then
+        set -a
+        # shellcheck disable=SC1091
+        source /root/.petro-panel.env
+        set +a
+    fi
+
     : "${PANEL_VERSION:=v1.11.10}"
     : "${WINGS_VERSION:=v1.13.4}"
     : "${PHP_VERSION:=8.3}"
@@ -237,3 +245,14 @@ wait_for_panel() {
 # ---- systemd convenience ----------------------------------------------------
 service_enable() { systemctl enable "$1" >/dev/null; }
 service_restart() { systemctl restart "$1"; }
+
+# External URL of the panel, including a non-standard port.
+panel_url() {
+    local scheme=http
+    [[ "${PANEL_SSL:-false}" == "true" ]] && scheme=https
+    if [[ "${PANEL_PORT:-80}" == "80" || ( "${PANEL_SSL:-false}" == "true" && "${PANEL_PORT:-80}" == "443" ) ]]; then
+        echo "${scheme}://${PANEL_FQDN}"
+    else
+        echo "${scheme}://${PANEL_FQDN}:${PANEL_PORT}"
+    fi
+}
