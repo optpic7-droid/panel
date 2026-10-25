@@ -81,6 +81,7 @@ scripts/
   20-install-wings.sh          Docker + Wings daemon + systemd unit
   30-connect-node.sh           creates location/node/allocations via API,
                                runs `wings configure`, starts the node
+  40-theme-arix.sh             installs/rolls back the licensed Arix theme
 configs/
   nginx/                       HTTP and HTTPS Nginx site templates
   systemd/                     wings.service and pteroq.service units
@@ -94,6 +95,21 @@ docs/
   SANDBOX-NOTES.md             what can/cannot run in restricted environments
 tests/smoke.sh                 static validation (bash -n, shellcheck, node --check)
 ```
+
+## Arix theme
+
+The browser demo and `demo/` server use an original **Arix-inspired** skin
+(crimson-on-black, glassy cards — no proprietary assets). The real, commercial
+[Arix theme](https://arix.gg/pterodactyl-theme) can be installed on a VPS
+panel from your licensed archive:
+
+```bash
+sudo ARIX_ZIP=/root/arix-theme.zip ./install.sh theme
+sudo ./install.sh theme --uninstall      # roll back to stock
+```
+
+Full guide, validation and backup behavior: [docs/ARIX-THEME.md](docs/ARIX-THEME.md).
+Nulled/leaked Arix copies are intentionally unsupported.
 
 ## No server available? Try the demos
 

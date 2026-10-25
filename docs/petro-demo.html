@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Petro Panel — standalone demo</title>
+<title>Petro Panel — Arix-inspired demo</title>
 <!--
   Self-contained Petro Panel demo: NO server, NO network, NO dependencies.
   Open this file directly in any browser (file:// works) or host it on
@@ -12,59 +12,84 @@
   State persists in localStorage. Login: admin / petro-demo
 -->
 <style>
+/* Arix-inspired palette: near-black canvas, crimson gradient accents,
+   glassy cards. Original CSS written for this demo - no Arix assets used. */
 :root {
-  --bg:#0d1117; --panel:#161b22; --panel-2:#1c2330; --border:#2a3140;
-  --text:#e6edf3; --dim:#8b949e; --red:#e53e3e; --red-hover:#c53030;
-  --green:#3fb950; --amber:#d29922; --blue:#388bfd;
+  --bg:#07070c; --bg-glow:#1a0610; --panel:rgba(20,16,24,.78); --panel-2:#1b1622;
+  --border:#2c2434; --text:#f2eef5; --dim:#9a8fa3;
+  --red:#f43f5e; --red-2:#e11d48; --red-hover:#be123c;
+  --green:#34d399; --amber:#fbbf24; --blue:#60a5fa;
+  --grad:linear-gradient(135deg,#f43f5e 0%,#e11d48 55%,#9f1239 100%);
 }
 * { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--text);
-  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:14px; }
+body { margin:0; color:var(--text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:14px;
+  background:
+    radial-gradient(1100px 520px at 85% -10%, rgba(225,29,72,.18), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(159,18,57,.16), transparent 55%),
+    var(--bg);
+  background-attachment:fixed; min-height:100vh; }
 .hidden { display:none !important; }
 code,pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
 .dim { color:var(--dim); } .error { color:var(--red); }
 .login-wrap { min-height:100vh; display:grid; place-items:center; padding:24px; }
-.login-card { width:min(430px,100%); background:var(--panel); border:1px solid var(--border);
-  border-radius:12px; padding:28px; display:flex; flex-direction:column; gap:14px; }
+.login-card { width:min(430px,100%); background:var(--panel);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--border); border-radius:18px; padding:30px;
+  display:flex; flex-direction:column; gap:14px;
+  box-shadow:0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04); }
 .brand { display:flex; align-items:center; gap:12px; }
 .brand h1 { margin:0; font-size:20px; }
 .brand .subtitle { margin:2px 0 0; font-size:12px; color:var(--dim); }
-.brand-mark { width:40px; height:40px; border-radius:10px; background:var(--red); color:#fff;
-  display:grid; place-items:center; font-weight:800; font-size:20px; flex:none; }
+.brand-mark { width:42px; height:42px; border-radius:12px; background:var(--grad); color:#fff;
+  display:grid; place-items:center; font-weight:800; font-size:20px; flex:none;
+  box-shadow:0 8px 24px rgba(225,29,72,.45), inset 0 1px 0 rgba(255,255,255,.25); }
 .brand-sm { padding:18px 16px; } .brand-sm strong { font-size:15px; }
 label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--dim); }
 input { background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
   color:var(--text); padding:10px 12px; font-size:14px; }
-input:focus { outline:2px solid var(--red); border-color:transparent; }
-.btn { border:0; border-radius:8px; padding:10px 16px; font-weight:600; cursor:pointer; font-size:14px; }
-.btn-primary { background:var(--red); color:#fff; } .btn-primary:hover { background:var(--red-hover); }
+input:focus { outline:2px solid var(--red-2); border-color:transparent; box-shadow:0 0 0 4px rgba(225,29,72,.15); }
+.btn { border:0; border-radius:10px; padding:10px 16px; font-weight:600; cursor:pointer; font-size:14px; transition:transform .12s ease, box-shadow .12s ease; }
+.btn:active { transform:translateY(1px); }
+.btn-primary { background:var(--grad); color:#fff; box-shadow:0 8px 22px rgba(225,29,72,.35); }
+.btn-primary:hover { box-shadow:0 10px 28px rgba(225,29,72,.55); }
 .btn-ghost { background:transparent; color:var(--dim); border:1px solid var(--border); }
 .btn-sm { padding:6px 10px; font-size:12px; }
 .hint { font-size:12px; color:var(--dim); margin:0; line-height:1.5; }
-.app { display:grid; grid-template-columns:235px 1fr; min-height:100vh; }
-.sidebar { background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; }
-.sidebar nav { display:flex; flex-direction:column; padding:8px; gap:2px; flex:1; }
+.app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+.sidebar { background:rgba(14,10,18,.85); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-right:1px solid var(--border); display:flex; flex-direction:column; }
+.sidebar nav { display:flex; flex-direction:column; padding:10px; gap:3px; flex:1; }
 .nav-item { background:transparent; border:0; color:var(--dim); text-align:left;
-  padding:10px 12px; border-radius:8px; cursor:pointer; font-size:14px; }
+  padding:11px 13px; border-radius:10px; cursor:pointer; font-size:14px; position:relative; transition:all .15s ease; }
 .nav-item:hover { background:var(--panel-2); color:var(--text); }
-.nav-item.active { background:var(--panel-2); color:var(--text); font-weight:600; }
+.nav-item.active { background:var(--grad); color:#fff; font-weight:700;
+  box-shadow:0 8px 22px rgba(225,29,72,.35); }
 .sidebar-foot { padding:14px 16px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
 .content { padding:26px 30px; overflow:auto; }
 .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:12px; flex-wrap:wrap; }
 .topbar h2 { margin:0; font-size:20px; }
 .badge { font-size:11px; font-weight:700; letter-spacing:.04em; padding:5px 10px; border-radius:999px; border:1px solid var(--border); }
-.badge-demo { color:var(--amber); border-color:var(--amber); }
+.badge-demo { color:var(--red); border-color:rgba(244,63,94,.5); background:rgba(225,29,72,.08); }
 .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin-bottom:20px; }
-.card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; }
-.card-num { font-size:30px; font-weight:800; } .card-label { color:var(--dim); margin-top:4px; font-size:13px; }
-.panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:18px; }
+.card { background:var(--panel); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border); border-radius:16px; padding:22px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04); transition:transform .15s ease, border-color .15s ease; }
+.card:hover { transform:translateY(-2px); border-color:rgba(244,63,94,.4); }
+.card-num { font-size:32px; font-weight:800; background:var(--grad); -webkit-background-clip:text;
+  background-clip:text; -webkit-text-fill-color:transparent; }
+.card-label { color:var(--dim); margin-top:4px; font-size:13px; letter-spacing:.03em; text-transform:uppercase; }
+.panel { background:var(--panel); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border); border-radius:16px; padding:22px; margin-bottom:18px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03); }
 .panel h3 { margin:0 0 12px; font-size:15px; }
 table { width:100%; border-collapse:collapse; }
 th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); font-size:13px; }
 th { color:var(--dim); font-weight:600; }
 tbody tr:last-child td { border-bottom:0; }
-.codeblock { background:#0a0d12; border:1px solid var(--border); border-radius:8px; padding:14px;
-  overflow:auto; font-size:12px; line-height:1.6; color:#a5d6ff; white-space:pre-wrap; word-break:break-all; }
+.codeblock { background:#0a070d; border:1px solid var(--border); border-radius:10px; padding:14px;
+  overflow:auto; font-size:12px; line-height:1.6; color:#fda4af; white-space:pre-wrap; word-break:break-all;
+  box-shadow:inset 0 0 24px rgba(225,29,72,.06); }
 .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; vertical-align:middle; }
 .dot-ok { background:var(--green); box-shadow:0 0 8px var(--green); }
 .dot-off { background:var(--dim); }
@@ -86,15 +111,15 @@ tbody tr:last-child td { border-bottom:0; }
   <form id="login-form" class="login-card">
     <div class="brand">
       <span class="brand-mark">P</span>
-      <div><h1>Petro Panel</h1><p class="subtitle">Standalone demo · runs fully in your browser</p></div>
+        <div><h1>Petro Panel</h1><p class="subtitle">Arix-inspired theme · runs fully in your browser</p></div>
     </div>
     <label>Username <input id="login-username" value="admin" autocomplete="username" /></label>
     <label>Password <input id="login-password" type="password" value="petro-demo" autocomplete="current-password" /></label>
     <p id="login-error" class="error hidden"></p>
     <button type="submit" class="btn btn-primary">Log in</button>
-    <p class="hint">No server is involved — the Pterodactyl Application API is emulated in
-      JavaScript and saved to localStorage. The production stack runs on your VPS via
-      <code>install.sh</code>.</p>
+    <p class="hint">Arix-inspired demo skin (original CSS; the commercial Arix theme is installed
+      separately on a real panel via <code>install.sh theme</code>). No server is involved — the
+      Pterodactyl Application API is emulated in JavaScript and saved to localStorage.</p>
   </form>
 </div>
 
@@ -118,7 +143,7 @@ tbody tr:last-child td { border-bottom:0; }
   <main class="content">
     <header class="topbar">
       <h2 id="view-title">Overview</h2>
-      <span class="badge badge-demo">STANDALONE DEMO · no backend</span>
+      <span class="badge badge-demo">ARIX-INSPIRED THEME · DEMO</span>
     </header>
 
     <section id="view-overview" class="view">

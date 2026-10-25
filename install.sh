@@ -9,6 +9,8 @@
 #   sudo ./install.sh wings           # install Docker + Wings (a node) only
 #   sudo ./install.sh node            # register/connect this node to the panel
 #   sudo ./install.sh all             # panel + wings + connect (same machine)
+#   sudo ./install.sh theme           # install Arix theme from ARIX_ZIP/URL
+#   sudo ./install.sh theme --uninstall  # restore the pre-theme backup
 #
 # Configuration is read from .env (see .env.example) or real env vars.
 # =============================================================================
@@ -39,6 +41,10 @@ run_node() {
     bash "${SCRIPT_DIR}/scripts/30-connect-node.sh"
 }
 
+run_theme() {
+    bash "${SCRIPT_DIR}/scripts/40-theme-arix.sh" "$@"
+}
+
 run_all() {
     run_panel
     run_wings
@@ -59,14 +65,16 @@ menu() {
     echo "  3) Install Wings (node daemon)"
     echo "  4) Install Panel + Wings + connect node (all-in-one)"
     echo "  5) Connect this node to an existing panel"
+    echo "  6) Install Arix theme (needs a licensed ARIX_ZIP/ARIX_SOURCE_URL)"
     echo "  q) Quit"
-    read -r -p "Choose [1-5/q]: " choice
+    read -r -p "Choose [1-6/q]: " choice
     case "$choice" in
         1) run_preflight ;;
         2) run_panel ;;
         3) run_wings ;;
         4) load_config; run_all ;;
         5) load_config; run_node ;;
+        6) load_config; run_theme ;;
         q|Q) exit 0 ;;
         *) die "Invalid choice." ;;
     esac
@@ -80,6 +88,7 @@ main() {
         panel)              load_config; run_panel ;;
         wings)              load_config; run_wings ;;
         node|connect-node)  load_config; run_node ;;
+        theme|arix)         shift; load_config; run_theme "$@" ;;
         all)                load_config; run_all ;;
         -h|--help|help)     usage 0 ;;
         *)                  echo "Unknown command: $cmd" >&2; usage 1 ;;

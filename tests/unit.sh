@@ -11,6 +11,8 @@ source scripts/lib.sh
 source scripts/30-connect-node.sh
 # shellcheck disable=SC1091
 source scripts/10-install-panel.sh
+# shellcheck disable=SC1091
+source scripts/40-theme-arix.sh
 
 pass=0; fail=0
 ok()  { pass=$((pass + 1)); echo "  ok   $*"; }
@@ -19,6 +21,49 @@ bad() { fail=$((fail + 1)); echo "  FAIL $*" >&2; }
 assert_eq() {
     if [[ "$1" == "$2" ]]; then ok "$3"; else bad "$3: got '$1' want '$2'"; fi
 }
+
+echo "== Arix archive validation =="
+arix_tmp=$(mktemp -d /tmp/arix-test.XXXXXX)
+# 1. well-formed theme archive with a nested root (as real Arix zips ship)
+( cd "$arix_tmp" && mkdir -p "Arix-1.3/pterodactyl/resources/scripts" "Arix-1.3/pterodactyl/app" \
+    && touch "Arix-1.3/pterodactyl/artisan" "Arix-1.3/pterodactyl/resources/scripts/app.tsx" \
+    && zip -qr good.zip "Arix-1.3" )
+if verify_theme_zip "$arix_tmp/good.zip"; then ok "valid Arix-shaped zip accepted"; else bad "valid zip rejected"; fi
+work=$(mktemp -d "$arix_tmp/extract.XXXXXX")
+unzip -q "$arix_tmp/good.zip" -d "$work"
+detected=$(detect_theme_root "$work")
+if [[ "$detected" == "$work/Arix-1.3/pterodactyl" ]]; then
+    ok "nested theme root detected"
+else
+    bad "theme root detection: $detected"
+fi
+
+# 2. archive missing the panel layout
+( cd "$arix_tmp" && mkdir -p random && echo hi > random/readme.txt && zip -qr bad.zip random )
+if verify_theme_zip "$arix_tmp/bad.zip"; then bad "non-theme zip should be rejected"; else ok "non-theme zip rejected"; fi
+
+# 3. archive with path traversal entries
+python3 - "$arix_tmp/evil.zip" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    z.writestr("../escape.txt", "x")
+    z.writestr("artisan", "<?php")
+    z.writestr("resources/scripts/x.tsx", "//x")
+PY
+if verify_theme_zip "$arix_tmp/evil.zip"; then bad "traversal zip should be rejected"; else ok "path-traversal zip rejected"; fi
+
+# 4. missing archive configuration fails loudly (the licensing guard)
+if ( unset ARIX_ZIP ARIX_SOURCE_URL; resolve_arix_archive >/dev/null 2>&1 ); then
+    bad "resolver must refuse without an archive"
+else
+    ok "resolver refuses when no ARIX_ZIP/ARIX_SOURCE_URL is set"
+fi
+if ( ARIX_ZIP=/nonexistent/arix.zip; unset ARIX_SOURCE_URL; resolve_arix_archive >/dev/null 2>&1 ); then
+    bad "missing ARIX_ZIP file must fail"
+else
+    ok "resolver rejects a missing ARIX_ZIP path"
+fi
+rm -rf "$arix_tmp" "$work"
 
 echo "== load_config defaults =="
 PETRO_CONFIG=/nonexistent/.env load_config
