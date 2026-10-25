@@ -103,6 +103,38 @@ Browse to `https://PANEL_FQDN`, sign in with the admin account, then:
    (`APPLICATION_API_KEY`) for the node step.
 3. Continue with [NODES.md](NODES.md).
 
+## Running without a domain (custom port / bare IP)
+
+Set in `.env`:
+
+```dotenv
+PANEL_FQDN="203.0.113.10"   # or a hostname
+PANEL_PORT="8088"           # any free port instead of 80
+PANEL_SSL="false"           # Let's Encrypt needs port 80 + a real domain
+```
+
+The installer renders `listen 8088;` into the Nginx site and sets the panel's
+`APP_URL` to `http://203.0.113.10:8088` automatically (the `panel_url` helper
+hides standard ports 80/443 and appends every other port). Open the chosen
+port in the firewall: `ufw allow 8088/tcp`. The node side already supports
+custom daemon ports via `NODE_DAEMON_PORT` (default 8080).
+
+## Trying it without a server at all
+
+`demo/server.mjs` is a zero-dependency Node server that emulates the
+Application API and serves a small dashboard, so the full node-connection flow
+can be exercised on any machine (or in a locked-down sandbox):
+
+```bash
+node demo/server.mjs           # picks a random port, prints it on startup
+# open the printed URL, log in with admin / petro-demo, then follow the
+# "Connect a node" view — it renders the exact scripts/30-connect-node.sh
+# command wired to this demo.
+```
+
+It is an API-compatible preview, **not** the production Pterodactyl binary
+(which requires PHP, MariaDB and Redis).
+
 ## Post-install hardening checklist
 
 - [ ] Replace the generated admin password with a strong one and enable 2FA.

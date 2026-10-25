@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Petro Panel — Demo</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Login view -->
+  <div id="login-view" class="login-wrap hidden">
+    <form id="login-form" class="login-card">
+      <div class="brand">
+        <span class="brand-mark">P</span>
+        <div>
+          <h1>Petro Panel</h1>
+          <p class="subtitle">Sandbox demo · API-compatible preview</p>
+        </div>
+      </div>
+      <label>Username
+        <input id="login-username" value="admin" autocomplete="username" />
+      </label>
+      <label>Password
+        <input id="login-password" type="password" value="petro-demo" autocomplete="current-password" />
+      </label>
+      <p id="login-error" class="error hidden"></p>
+      <button type="submit" class="btn btn-primary">Log in</button>
+      <p class="hint">Demo credentials are pre-filled. This is an emulated panel — the real
+        Pterodactyl stack runs on your VPS via <code>install.sh</code>.</p>
+    </form>
+  </div>
+
+  <!-- Dashboard view -->
+  <div id="app-view" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand brand-sm">
+        <span class="brand-mark">P</span>
+        <strong>Petro Panel</strong>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="nodes">Nodes</button>
+        <button class="nav-item" data-view="locations">Locations</button>
+        <button class="nav-item" data-view="allocations">Allocations</button>
+        <button class="nav-item" data-view="connect">Connect a node</button>
+        <button class="nav-item" data-view="activity">Activity log</button>
+      </nav>
+      <div class="sidebar-foot">
+        <span id="whoami" class="dim"></span>
+        <button id="logout" class="btn btn-ghost btn-sm">Log out</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <h2 id="view-title">Overview</h2>
+        <span class="badge badge-demo">DEMO · not the production Pterodactyl binary</span>
+      </header>
+
+      <section id="view-overview" class="view">
+        <div class="cards">
+          <div class="card"><div class="card-num" id="c-nodes">0</div><div class="card-label">Nodes</div></div>
+          <div class="card"><div class="card-num" id="c-connected">0</div><div class="card-label">Connected</div></div>
+          <div class="card"><div class="card-num" id="c-locations">0</div><div class="card-label">Locations</div></div>
+          <div class="card"><div class="card-num" id="c-allocations">0</div><div class="card-label">Allocations</div></div>
+        </div>
+        <div class="panel">
+          <h3>What am I looking at?</h3>
+          <p class="dim">This server emulates the Pterodactyl <strong>Application API</strong>
+          (<code>/api/application/*</code>) that <code>scripts/30-connect-node.sh</code> uses.
+          Run the connect flow against this demo and watch a node appear here in real time —
+          the exact same requests register a real node on a production panel.</p>
+        </div>
+      </section>
+
+      <section id="view-nodes" class="view hidden">
+        <div class="panel">
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>FQDN</th><th>Scheme</th><th>Daemon</th><th>SFTP</th><th>Memory</th><th>Disk</th><th>Status</th></tr></thead>
+            <tbody id="nodes-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-locations" class="view hidden">
+        <div class="panel">
+          <table>
+            <thead><tr><th>ID</th><th>Short code</th><th>Description</th></tr></thead>
+            <tbody id="locations-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-allocations" class="view hidden">
+        <div class="panel">
+          <table>
+            <thead><tr><th>ID</th><th>Node</th><th>IP</th><th>Alias</th><th>Port</th></tr></thead>
+            <tbody id="allocations-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-connect" class="view hidden">
+        <div class="panel">
+          <h3>Connect a node to this demo panel</h3>
+          <p class="dim">From the repository root (this sandbox, or any machine with the repo),
+          run the real connector against this server:</p>
+          <pre id="connect-cmd" class="codeblock"></pre>
+          <p class="dim">It creates the location and node, adds allocations, fetches
+          <code>/nodes/:id/configuration</code> and writes <code>config.yml</code>. The node
+          then flips to <span class="dot dot-ok"></span> connected in the Nodes view.</p>
+        </div>
+        <div class="panel">
+          <h3>Application API key</h3>
+          <pre id="api-key" class="codeblock"></pre>
+        </div>
+      </section>
+
+      <section id="view-activity" class="view hidden">
+        <div class="panel">
+          <h3>Live API activity (polls every 3s)</h3>
+          <table>
+            <thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Auth</th></tr></thead>
+            <tbody id="activity-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

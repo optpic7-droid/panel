@@ -135,8 +135,11 @@ async function main() {
     record(p ? 'ok' : 'warn', label, p ? versionOf(p, args) ?? 'installed' : 'not installed yet');
   }
 
-  // Ports needed by panel + node
-  for (const port of [80, 443, Number(env.NODE_DAEMON_PORT) || 8080, Number(env.NODE_SFTP_PORT) || 2022]) {
+  // Ports needed by panel + node. Custom PANEL_PORT replaces the 80/443 pair.
+  const panelPorts = env.PANEL_PORT && Number(env.PANEL_PORT) !== 80
+    ? [Number(env.PANEL_PORT)]
+    : [80, 443];
+  for (const port of [...panelPorts, Number(env.NODE_DAEMON_PORT) || 8080, Number(env.NODE_SFTP_PORT) || 2022]) {
     record(await portFree(port) ? 'ok' : 'warn', `port ${port} free`, await portFree(port) ? 'available' : 'in use');
   }
 

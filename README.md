@@ -85,6 +85,7 @@ configs/
   nginx/                       HTTP and HTTPS Nginx site templates
   systemd/                     wings.service and pteroq.service units
   wings/config.yml.example     annotated Wings configuration reference
+demo/                          runnable API-compatible preview (random port)
 docs/
   INSTALL.md                   full step-by-step install
   DEPLOY-GITHUB-ACTIONS.md     deploy to a VPS without touching its shell
@@ -93,6 +94,14 @@ docs/
   SANDBOX-NOTES.md             what can/cannot run in restricted environments
 tests/smoke.sh                 static validation (bash -n, shellcheck, node --check)
 ```
+
+## No server available? Try the runnable demo
+
+`node demo/server.mjs` starts a zero-dependency preview on a **random port**
+with a dashboard and an emulated Application API — the real
+`scripts/30-connect-node.sh` can register a node against it end-to-end. Login:
+`admin` / `petro-demo`. This is a demo of the API flow, not the production
+Pterodactyl binary (which needs PHP/MariaDB/Redis and a real VPS).
 
 ## Documentation
 

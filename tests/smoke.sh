@@ -30,6 +30,8 @@ fi
 echo "== node syntax =="
 node --check scripts/preflight.mjs
 echo "  OK  scripts/preflight.mjs"
+node --check demo/server.mjs
+echo "  OK  demo/server.mjs"
 
 echo "== python syntax =="
 python3 -m py_compile scripts/render-config.py
@@ -43,6 +45,9 @@ bash tests/unit.sh
 
 echo "== integration tests (mock panel API) =="
 bash tests/integration.sh
+
+echo "== demo server tests (runnable preview) =="
+bash tests/demo.sh
 
 echo "== config placeholders =="
 grep -q '__FQDN__' configs/nginx/pterodactyl.conf

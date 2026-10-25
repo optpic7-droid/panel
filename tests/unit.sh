@@ -9,6 +9,8 @@ cd "$ROOT"
 source scripts/lib.sh
 # shellcheck disable=SC1091
 source scripts/30-connect-node.sh
+# shellcheck disable=SC1091
+source scripts/10-install-panel.sh
 
 pass=0; fail=0
 ok()  { pass=$((pass + 1)); echo "  ok   $*"; }
@@ -77,6 +79,17 @@ assert d["ports"] == ["25565","25570","25571","25572","27015"], d'; then
 else
     bad "allocation payload: $alloc_json"
 fi
+
+echo "== panel_url (custom port support) =="
+PANEL_FQDN="panel.example.com"
+PANEL_SSL="false"; PANEL_PORT="80"
+assert_eq "$(panel_url)" "http://panel.example.com" "standard HTTP URL hides port 80"
+PANEL_PORT="8088"
+assert_eq "$(panel_url)" "http://panel.example.com:8088" "custom HTTP port appears in URL"
+PANEL_SSL="true"; PANEL_PORT="443"
+assert_eq "$(panel_url)" "https://panel.example.com" "standard HTTPS URL hides port 443"
+PANEL_SSL="true"; PANEL_PORT="8443"
+assert_eq "$(panel_url)" "https://panel.example.com:8443" "custom HTTPS port appears in URL"
 
 echo "== json_get =="
 assert_eq "$(echo '{"attributes":{"id":42}}' | json_get 'd["attributes"]["id"]')" "42" \

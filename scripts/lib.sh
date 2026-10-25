@@ -46,6 +46,7 @@ load_config() {
     : "${WINGS_VERSION:=v1.13.4}"
     : "${PHP_VERSION:=8.3}"
     : "${PANEL_PATH:=/var/www/pterodactyl}"
+    : "${PANEL_PORT:=80}"
     : "${WINGS_CONFIG_PATH:=/etc/pterodactyl}"
     : "${WINGS_DATA_PATH:=/var/lib/pterodactyl/volumes}"
     : "${DB_NAME:=panel}"

@@ -11,6 +11,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib.sh"
 
+# External URL of the panel, including a non-standard port.
+panel_url() {
+    local scheme=http
+    [[ "${PANEL_SSL}" == "true" ]] && scheme=https
+    if [[ "${PANEL_PORT}" == "80" || ( "${PANEL_SSL}" == "true" && "${PANEL_PORT}" == "443" ) ]]; then
+        echo "${scheme}://${PANEL_FQDN}"
+    else
+        echo "${scheme}://${PANEL_FQDN}:${PANEL_PORT}"
+    fi
+}
+
 main() {
     load_config
     require_root
@@ -28,7 +39,7 @@ main() {
 
     log "Panel installation finished."
     echo
-    log "URL:      $([[ "${PANEL_SSL}" == "true" ]] && echo "https://${PANEL_FQDN}" || echo "http://${PANEL_FQDN}")"
+    log "URL:      $(panel_url)"
     log "Login:    ${ADMIN_USERNAME}"
     if [[ -n "${ADMIN_PASSWORD:-}" ]]; then
         log "Password: ${ADMIN_PASSWORD}"
@@ -121,7 +132,7 @@ configure_panel() {
 
     log "Writing environment configuration"
     php artisan p:environment:setup \
-        --url="$([[ "${PANEL_SSL}" == "true" ]] && echo "https://${PANEL_FQDN}" || echo "http://${PANEL_FQDN}")" \
+        --url="$(panel_url)" \
         --timezone="${TIMEZONE}" \
         --cache=redis --session=redis --queue=redis \
         --redis-host=127.0.0.1 --redis-port=6379 --redis-pass="" \
@@ -170,8 +181,9 @@ configure_nginx() {
     # nginx plugin rewrites this very file with the 443/certificate block.
     # Installing the SSL template before the certificate exists would fail
     # 'nginx -t'. configs/nginx/pterodactyl-ssl.conf is the reference layout.
-    log "Installing Nginx site for ${PANEL_FQDN} (HTTP)"
+    log "Installing Nginx site for ${PANEL_FQDN} on port ${PANEL_PORT} (HTTP)"
     sed -e "s|__FQDN__|${PANEL_FQDN}|g" \
+        -e "s|__PANEL_PORT__|${PANEL_PORT}|g" \
         -e "s|__PHP_SOCKET__|/run/php/php${PHP_VERSION}-fpm.sock|g" \
         -e "s|__PANEL_PATH__|${PANEL_PATH}|g" \
         "${PETRO_ROOT}/configs/nginx/pterodactyl.conf" > /etc/nginx/sites-available/pterodactyl
@@ -200,6 +212,11 @@ EOF
 issue_certificate() {
     if [[ "${PANEL_SSL}" != "true" ]]; then
         info "PANEL_SSL=false, skipping Let's Encrypt."
+        return
+    fi
+    if [[ "${PANEL_PORT}" != "80" ]]; then
+        warn "PANEL_PORT=${PANEL_PORT}: Let's Encrypt HTTP-01 needs port 80, skipping TLS."
+        warn "The panel stays reachable at $(panel_url). Set PANEL_PORT=80 for HTTPS."
         return
     fi
     if ! command -v certbot >/dev/null; then
