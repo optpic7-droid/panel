@@ -1,0 +1,15 @@
+# Local installer configuration (contains secrets - never commit)
+.env
+/root/.petro-panel.env
+
+# Editor / OS noise
+*.swp
+.DS_Store
+__pycache__/
+*.pyc
+
+# Demo runtime state (regenerated on first boot)
+demo/data.json
+
+# Codespace stack runtime (env secrets, database, wings data)
+.codespace/

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Petro Panel — Arix-inspired demo</title>
+<!--
+  Self-contained Petro Panel demo: NO server, NO network, NO dependencies.
+  Open this file directly in any browser (file:// works) or host it on
+  GitHub Pages. It emulates the Pterodactyl Application API contract in
+  JavaScript and simulates scripts/30-connect-node.sh end to end.
+  State persists in localStorage. Login: admin / petro-demo
+-->
+<style>
+/* Arix-inspired palette: near-black canvas, crimson gradient accents,
+   glassy cards. Original CSS written for this demo - no Arix assets used. */
+:root {
+  --bg:#07070c; --bg-glow:#1a0610; --panel:rgba(20,16,24,.78); --panel-2:#1b1622;
+  --border:#2c2434; --text:#f2eef5; --dim:#9a8fa3;
+  --red:#f43f5e; --red-2:#e11d48; --red-hover:#be123c;
+  --green:#34d399; --amber:#fbbf24; --blue:#60a5fa;
+  --grad:linear-gradient(135deg,#f43f5e 0%,#e11d48 55%,#9f1239 100%);
+}
+* { box-sizing:border-box; }
+body { margin:0; color:var(--text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; font-size:14px;
+  background:
+    radial-gradient(1100px 520px at 85% -10%, rgba(225,29,72,.18), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(159,18,57,.16), transparent 55%),
+    var(--bg);
+  background-attachment:fixed; min-height:100vh; }
+.hidden { display:none !important; }
+code,pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.dim { color:var(--dim); } .error { color:var(--red); }
+.login-wrap { min-height:100vh; display:grid; place-items:center; padding:24px; }
+.login-card { width:min(430px,100%); background:var(--panel);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--border); border-radius:18px; padding:30px;
+  display:flex; flex-direction:column; gap:14px;
+  box-shadow:0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04); }
+.brand { display:flex; align-items:center; gap:12px; }
+.brand h1 { margin:0; font-size:20px; }
+.brand .subtitle { margin:2px 0 0; font-size:12px; color:var(--dim); }
+.brand-mark { width:42px; height:42px; border-radius:12px; background:var(--grad); color:#fff;
+  display:grid; place-items:center; font-weight:800; font-size:20px; flex:none;
+  box-shadow:0 8px 24px rgba(225,29,72,.45), inset 0 1px 0 rgba(255,255,255,.25); }
+.brand-sm { padding:18px 16px; } .brand-sm strong { font-size:15px; }
+label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--dim); }
+input { background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); padding:10px 12px; font-size:14px; }
+input:focus { outline:2px solid var(--red-2); border-color:transparent; box-shadow:0 0 0 4px rgba(225,29,72,.15); }
+.btn { border:0; border-radius:10px; padding:10px 16px; font-weight:600; cursor:pointer; font-size:14px; transition:transform .12s ease, box-shadow .12s ease; }
+.btn:active { transform:translateY(1px); }
+.btn-primary { background:var(--grad); color:#fff; box-shadow:0 8px 22px rgba(225,29,72,.35); }
+.btn-primary:hover { box-shadow:0 10px 28px rgba(225,29,72,.55); }
+.btn-ghost { background:transparent; color:var(--dim); border:1px solid var(--border); }
+.btn-sm { padding:6px 10px; font-size:12px; }
+.hint { font-size:12px; color:var(--dim); margin:0; line-height:1.5; }
+.app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+.sidebar { background:rgba(14,10,18,.85); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-right:1px solid var(--border); display:flex; flex-direction:column; }
+.sidebar nav { display:flex; flex-direction:column; padding:10px; gap:3px; flex:1; }
+.nav-item { background:transparent; border:0; color:var(--dim); text-align:left;
+  padding:11px 13px; border-radius:10px; cursor:pointer; font-size:14px; position:relative; transition:all .15s ease; }
+.nav-item:hover { background:var(--panel-2); color:var(--text); }
+.nav-item.active { background:var(--grad); color:#fff; font-weight:700;
+  box-shadow:0 8px 22px rgba(225,29,72,.35); }
+.sidebar-foot { padding:14px 16px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+.content { padding:26px 30px; overflow:auto; }
+.topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:12px; flex-wrap:wrap; }
+.topbar h2 { margin:0; font-size:20px; }
+.badge { font-size:11px; font-weight:700; letter-spacing:.04em; padding:5px 10px; border-radius:999px; border:1px solid var(--border); }
+.badge-demo { color:var(--red); border-color:rgba(244,63,94,.5); background:rgba(225,29,72,.08); }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px; margin-bottom:20px; }
+.card { background:var(--panel); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border); border-radius:16px; padding:22px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04); transition:transform .15s ease, border-color .15s ease; }
+.card:hover { transform:translateY(-2px); border-color:rgba(244,63,94,.4); }
+.card-num { font-size:32px; font-weight:800; background:var(--grad); -webkit-background-clip:text;
+  background-clip:text; -webkit-text-fill-color:transparent; }
+.card-label { color:var(--dim); margin-top:4px; font-size:13px; letter-spacing:.03em; text-transform:uppercase; }
+.panel { background:var(--panel); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border); border-radius:16px; padding:22px; margin-bottom:18px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03); }
+.panel h3 { margin:0 0 12px; font-size:15px; }
+table { width:100%; border-collapse:collapse; }
+th,td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); font-size:13px; }
+th { color:var(--dim); font-weight:600; }
+tbody tr:last-child td { border-bottom:0; }
+.codeblock { background:#0a070d; border:1px solid var(--border); border-radius:10px; padding:14px;
+  overflow:auto; font-size:12px; line-height:1.6; color:#fda4af; white-space:pre-wrap; word-break:break-all;
+  box-shadow:inset 0 0 24px rgba(225,29,72,.06); }
+.dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; vertical-align:middle; }
+.dot-ok { background:var(--green); box-shadow:0 0 8px var(--green); }
+.dot-off { background:var(--dim); }
+.status-ok { color:var(--green); font-weight:600; } .status-off { color:var(--dim); }
+.method-POST { color:var(--green); font-weight:700; } .method-GET { color:var(--blue); font-weight:700; }
+.h-2 { color:var(--green); } .h-4 { color:var(--amber); }
+.steps { list-style:none; padding:0; margin:12px 0 0; }
+.steps li { padding:7px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:center; }
+.steps li:last-child { border-bottom:0; }
+.step-state { width:18px; text-align:center; }
+.spinner { width:14px; height:14px; border:2px solid var(--dim); border-top-color:transparent; border-radius:50%;
+  display:inline-block; animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="login-view" class="login-wrap hidden">
+  <form id="login-form" class="login-card">
+    <div class="brand">
+      <span class="brand-mark">P</span>
+        <div><h1>Petro Panel</h1><p class="subtitle">Arix-inspired theme · runs fully in your browser</p></div>
+    </div>
+    <label>Username <input id="login-username" value="admin" autocomplete="username" /></label>
+    <label>Password <input id="login-password" type="password" value="petro-demo" autocomplete="current-password" /></label>
+    <p id="login-error" class="error hidden"></p>
+    <button type="submit" class="btn btn-primary">Log in</button>
+    <p class="hint">Arix-inspired demo skin (original CSS; the commercial Arix theme is installed
+      separately on a real panel via <code>install.sh theme</code>). No server is involved — the
+      Pterodactyl Application API is emulated in JavaScript and saved to localStorage.</p>
+  </form>
+</div>
+
+<div id="app-view" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand brand-sm"><span class="brand-mark">P</span><strong>Petro Panel</strong></div>
+    <nav>
+      <button class="nav-item active" data-view="overview">Overview</button>
+      <button class="nav-item" data-view="nodes">Nodes</button>
+      <button class="nav-item" data-view="locations">Locations</button>
+      <button class="nav-item" data-view="allocations">Allocations</button>
+      <button class="nav-item" data-view="connect">Connect a node</button>
+      <button class="nav-item" data-view="activity">Activity log</button>
+    </nav>
+    <div class="sidebar-foot">
+      <span id="whoami" class="dim"></span>
+      <button id="logout" class="btn btn-ghost btn-sm">Log out</button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <h2 id="view-title">Overview</h2>
+      <span class="badge badge-demo">ARIX-INSPIRED THEME · DEMO</span>
+    </header>
+
+    <section id="view-overview" class="view">
+      <div class="cards">
+        <div class="card"><div class="card-num" id="c-nodes">0</div><div class="card-label">Nodes</div></div>
+        <div class="card"><div class="card-num" id="c-connected">0</div><div class="card-label">Connected</div></div>
+        <div class="card"><div class="card-num" id="c-locations">0</div><div class="card-label">Locations</div></div>
+        <div class="card"><div class="card-num" id="c-allocations">0</div><div class="card-label">Allocations</div></div>
+      </div>
+      <div class="panel">
+        <h3>What am I looking at?</h3>
+        <p class="dim">This page emulates the Pterodactyl <strong>Application API</strong>
+        (<code>/api/application/*</code>) that <code>scripts/30-connect-node.sh</code> uses.
+        Open <strong>Connect a node</strong> and run the simulation — it performs the exact
+        location → node → allocation → configuration sequence against the in-browser mock,
+        and a node flips to <span class="dot dot-ok"></span>connected.</p>
+      </div>
+    </section>
+
+    <section id="view-nodes" class="view hidden">
+      <div class="panel">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>FQDN</th><th>Scheme</th><th>Daemon</th><th>SFTP</th><th>Memory</th><th>Disk</th><th>Status</th></tr></thead>
+          <tbody id="nodes-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-locations" class="view hidden">
+      <div class="panel">
+        <table>
+          <thead><tr><th>ID</th><th>Short code</th><th>Description</th></tr></thead>
+          <tbody id="locations-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-allocations" class="view hidden">
+      <div class="panel">
+        <table>
+          <thead><tr><th>ID</th><th>Node</th><th>IP</th><th>Alias</th><th>Port</th></tr></thead>
+          <tbody id="allocations-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-connect" class="view hidden">
+      <div class="panel">
+        <h3>1. Simulate the node-connection flow</h3>
+        <p class="dim">Runs the same request sequence as
+        <code>30-connect-node.sh</code> against the emulated API, with each step shown live.
+        The generated <code>config.yml</code> downloads at the end.</p>
+        <button id="run-sim" class="btn btn-primary">▶ Run node-connect simulation</button>
+        <button id="reset-demo" class="btn btn-ghost btn-sm">Reset demo data</button>
+        <ul id="sim-steps" class="steps"></ul>
+      </div>
+      <div class="panel">
+        <h3>2. The real command (against a production panel or the Node demo)</h3>
+        <pre id="connect-cmd" class="codeblock"></pre>
+      </div>
+      <div class="panel">
+        <h3>Emulated Application API key</h3>
+        <pre id="api-key" class="codeblock"></pre>
+      </div>
+    </section>
+
+    <section id="view-activity" class="view hidden">
+      <div class="panel">
+        <h3>API activity</h3>
+        <table>
+          <thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th></tr></thead>
+          <tbody id="activity-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const uuid = () => crypto.randomUUID ? crypto.randomUUID() :
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+const rnd = (n) => Array.from({ length: n }, () =>
+  "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ---------- in-browser emulation of the Pterodactyl Application API ---------- */
+const STORE_KEY = "petro-standalone-demo";
+function freshState() {
+  return {
+    apiKey: "ptla_demo_" + rnd(24),
+    locations: [], nodes: [], allocations: [],
+    counters: { location: 0, node: 0, allocation: 0 },
+    activity: [],
+  };
+}
+let state = (() => {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || freshState(); }
+  catch { return freshState(); }
+})();
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function log(method, path, status) {
+  state.activity.unshift({ ts: new Date().toISOString(), method, path, status });
+  state.activity = state.activity.slice(0, 60); save();
+}
+// Mirrors demo/server.mjs and the real panel routes.
+const MockApi = {
+  requireAuth(h) { return h.Authorization === "Bearer " + state.apiKey; },
+  call(method, path, body, headers = {}) {
+    if (path.startsWith("/api/application/") && !this.requireAuth(headers)) {
+      log(method, path, 401); throw { status: 401, detail: "invalid token" };
+    }
+    if (method === "GET" && path === "/api/application/nodes") {
+      log(method, path, 200); return { data: state.nodes.map((n) => ({ attributes: n })) };
+    }
+    if (method === "GET" && path === "/api/application/locations") {
+      log(method, path, 200); return { data: state.locations.map((l) => ({ attributes: l })) };
+    }
+    if (method === "POST" && path === "/api/application/locations") {
+      const loc = { id: ++state.counters.location, short: body.short, long: body.long || "" };
+      state.locations.push(loc); log(method, path, 201); save(); return { attributes: loc };
+    }
+    if (method === "POST" && path === "/api/application/nodes") {
+      const node = {
+        id: ++state.counters.node, uuid: uuid(),
+        daemon_token_id: "ptla_demo_" + rnd(12), daemon_token: rnd(48),
+        configured: false, heartbeat_at: null,
+        created_at: new Date().toISOString(), ...body,
+      };
+      state.nodes.push(node); log(method, path, 201); save(); return { attributes: node };
+    }
+    let m = path.match(/^\/api\/application\/nodes\/(\d+)\/allocations$/);
+    if (method === "POST" && m) {
+      const nodeId = Number(m[1]);
+      for (const port of body.ports || []) {
+        state.allocations.push({ id: ++state.counters.allocation, node_id: nodeId,
+          ip: body.ip, alias: body.alias || null, port: Number(port) });
+      }
+      log(method, path, 204); save(); return null;
+    }
+    m = path.match(/^\/api\/application\/nodes\/(\d+)\/configuration$/);
+    if (method === "GET" && m) {
+      const node = state.nodes.find((n) => n.id === Number(m[1]));
+      if (!node) { log(method, path, 404); throw { status: 404, detail: "node not found" }; }
+      node.configured = true; node.heartbeat_at = new Date().toISOString();
+      log(method, path, 200); save();
+      return {
+        debug: false, uuid: node.uuid, token_id: node.daemon_token_id, token: node.daemon_token,
+        api: { host: "0.0.0.0", port: node.daemon_listen,
+          ssl: { enabled: !node.behind_proxy && node.scheme === "https",
+            cert: `/etc/letsencrypt/live/${node.fqdn}/fullchain.pem`,
+            key: `/etc/letsencrypt/live/${node.fqdn}/privkey.pem` },
+          upload_limit: node.upload_size },
+        system: { data: node.daemon_base, sftp: { bind_port: node.daemon_sftp } },
+        allowed_mounts: [], remote: "https://panel.example.com",
+      };
+    }
+    m = path.match(/^\/api\/application\/nodes\/(\d+)$/);
+    if (method === "GET" && m) {
+      const node = state.nodes.find((n) => n.id === Number(m[1]));
+      if (!node) { log(method, path, 404); throw { status: 404, detail: "node not found" }; }
+      log(method, path, 200); return { attributes: node };
+    }
+    log(method, path, 404); throw { status: 404, detail: "no mock route" };
+  },
+};
+
+/* ---------- the exact sequence scripts/30-connect-node.sh performs ---------- */
+async function runConnectSimulation() {
+  const btn = $("run-sim"); btn.disabled = true;
+  const list = $("sim-steps"); list.innerHTML = "";
+  const H = { Authorization: "Bearer " + state.apiKey, "Content-Type": "application/json" };
+  const step = (text) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="step-state"><span class="spinner"></span></span><span>${text}</span>`;
+    list.appendChild(li); return li;
+  };
+  const done = (li, ok) => {
+    li.querySelector(".step-state").innerHTML = ok ? "✅" : "❌";
+  };
+  try {
+    let s = step("GET /api/application/nodes — verify API key");
+    MockApi.call("GET", "/api/application/nodes", null, H); await sleep(350); done(s, true);
+
+    s = step("POST /locations — ensure location 'loc1'");
+    const existingLoc = MockApi.call("GET", "/api/application/locations", null, H).data
+      .find((x) => x.attributes.short === "loc1");
+    let locationId = existingLoc ? existingLoc.attributes.id
+      : MockApi.call("POST", "/api/application/locations", { short: "loc1", long: "Default location" }, H).id;
+    await sleep(350); done(s, true);
+
+    s = step("POST /nodes — register node 'node-1' (node.local)");
+    const existingNode = MockApi.call("GET", "/api/application/nodes", null, H).data
+      .find((x) => x.attributes.name === "node-1");
+    let nodeId = existingNode ? existingNode.attributes.id
+      : MockApi.call("POST", "/api/application/nodes", {
+          public: true, name: "node-1", location_id: locationId, fqdn: "node.local",
+          scheme: "http", behind_proxy: false, maintenance_mode: false,
+          memory: 8192, memory_overallocate: 0, disk: 20480, disk_overallocate: 0,
+          upload_size: 100, daemon_listen: 8080, daemon_sftp: 2022,
+          daemon_base: "/var/lib/pterodactyl/volumes",
+        }, H).id;
+    await sleep(350); done(s, true);
+
+    s = step("POST /nodes/" + nodeId + "/allocations — ports 25565, 25570–25572");
+    MockApi.call("POST", `/api/application/nodes/${nodeId}/allocations`,
+      { ip: "127.0.0.1", ports: ["25565", "25570", "25571", "25572"] }, H);
+    await sleep(350); done(s, true);
+
+    s = step("GET /nodes/" + nodeId + "/configuration — fetch daemon credentials");
+    const cfg = MockApi.call("GET", `/api/application/nodes/${nodeId}/configuration`, null, H);
+    await sleep(350); done(s, true);
+
+    s = step("Write /etc/pterodactyl/config.yml (downloading copy) and start Wings");
+    const yaml = renderConfigYml(cfg);
+    downloadFile("config.yml", yaml);
+    await sleep(350); done(s, true);
+
+    renderAll();
+  } catch (err) {
+    const li = step("FAILED: " + (err.detail || err)); done(li, false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderConfigYml(c) {
+  const q = (v) => JSON.stringify(String(v));
+  return [
+    "debug: false", "uuid: " + q(c.uuid), "token_id: " + q(c.token_id), "token: " + q(c.token),
+    "api:", "  host: " + q(c.api.host), "  port: " + c.api.port, "  ssl:",
+    "    enabled: " + (c.api.ssl.enabled ? "true" : "false"),
+    "    cert: " + q(c.api.ssl.cert), "    key: " + q(c.api.ssl.key),
+    "  upload_limit: " + c.api.upload_limit, "system:", "  data: " + q(c.system.data),
+    "  sftp:", "    bind_port: " + c.system.sftp.bind_port,
+    "allowed_mounts: []", "remote: " + q(c.remote), "",
+  ].join("\n");
+}
+function downloadFile(name, content) {
+  const blob = new Blob([content], { type: "text/yaml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ---------- UI ---------- */
+function statusHtml(node) {
+  return node.configured
+    ? '<span class="dot dot-ok"></span><span class="status-ok">connected</span>'
+    : '<span class="dot dot-off"></span><span class="status-off">awaiting configuration</span>';
+}
+function renderAll() {
+  const connected = state.nodes.filter((n) => n.configured).length;
+  $("c-nodes").textContent = state.nodes.length;
+  $("c-connected").textContent = connected;
+  $("c-locations").textContent = state.locations.length;
+  $("c-allocations").textContent = state.allocations.length;
+
+  $("nodes-body").innerHTML = state.nodes.length ? state.nodes.map((n) => `
+    <tr><td>${n.id}</td><td><strong>${esc(n.name)}</strong></td><td>${esc(n.fqdn)}</td>
+    <td>${esc(n.scheme)}</td><td>${n.daemon_listen}</td><td>${n.daemon_sftp}</td>
+    <td>${Number(n.memory).toLocaleString()} MiB</td><td>${Number(n.disk).toLocaleString()} MiB</td>
+    <td>${statusHtml(n)}</td></tr>`).join("")
+    : '<tr><td colspan="9" class="dim">No nodes yet — run the simulation.</td></tr>';
+
+  $("locations-body").innerHTML = state.locations.length ? state.locations.map((l) => `
+    <tr><td>${l.id}</td><td>${esc(l.short)}</td><td>${esc(l.long)}</td></tr>`).join("")
+    : '<tr><td colspan="3" class="dim">No locations yet.</td></tr>';
+
+  const nodeName = (id) => (state.nodes.find((n) => n.id === id) || {}).name || "#" + id;
+  $("allocations-body").innerHTML = state.allocations.length ? state.allocations.map((a) => `
+    <tr><td>${a.id}</td><td>${esc(nodeName(a.node_id))}</td><td>${esc(a.ip)}</td>
+    <td>${esc(a.alias || "—")}</td><td>${a.port}</td></tr>`).join("")
+    : '<tr><td colspan="5" class="dim">No allocations yet.</td></tr>';
+
+  $("activity-body").innerHTML = state.activity.length ? state.activity.map((e) => `
+    <tr><td class="dim">${new Date(e.ts).toLocaleTimeString()}</td>
+    <td class="method-${esc(e.method)}">${esc(e.method)}</td>
+    <td><code>${esc(e.path)}</code></td>
+    <td class="h-${String(e.status).charAt(0)}">${e.status}</td></tr>`).join("")
+    : '<tr><td colspan="4" class="dim">No API calls yet.</td></tr>';
+}
+
+const TITLES = { overview: "Overview", nodes: "Nodes", locations: "Locations",
+  allocations: "Allocations", connect: "Connect a node", activity: "Activity log" };
+document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
+  $("view-title").textContent = TITLES[btn.dataset.view];
+  $("view-" + btn.dataset.view).classList.remove("hidden");
+  renderAll();
+}));
+
+$("login-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if ($("login-username").value === "admin" && $("login-password").value === "petro-demo") {
+    sessionStorage.setItem("petro-demo-auth", "1"); boot();
+  } else {
+    const el = $("login-error"); el.textContent = "Invalid credentials (try admin / petro-demo)";
+    el.classList.remove("hidden");
+  }
+});
+$("logout").addEventListener("click", () => {
+  sessionStorage.removeItem("petro-demo-auth"); showLogin();
+});
+$("run-sim").addEventListener("click", runConnectSimulation);
+$("reset-demo").addEventListener("click", () => {
+  if (!confirm("Clear all demo locations, nodes, allocations and logs?")) return;
+  state = freshState(); save(); renderAll(); $("sim-steps").innerHTML = "";
+  $("api-key").textContent = state.apiKey;
+});
+
+function boot() {
+  $("whoami").textContent = "@admin";
+  $("api-key").textContent = state.apiKey;
+  $("connect-cmd").textContent =
+`sudo -n env \\
+  PANEL_URL=https://panel.example.com \\
+  APPLICATION_API_KEY=${state.apiKey} \\
+  NODE_NAME=node-1 NODE_FQDN=node.local NODE_SCHEME=http \\
+  LOCATION_SHORT=loc1 ALLOCATION_IP=127.0.0.1 ALLOCATION_PORTS=25565,25570-25572 \\
+  WINGS_CONFIG_PATH=/etc/pterodactyl \\
+  bash scripts/30-connect-node.sh`;
+  $("login-view").classList.add("hidden");
+  $("app-view").classList.remove("hidden");
+  renderAll();
+}
+function showLogin() {
+  $("app-view").classList.add("hidden");
+  $("login-view").classList.remove("hidden");
+}
+if (sessionStorage.getItem("petro-demo-auth") === "1") boot(); else showLogin();
+</script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+# =============================================================================
+# Real Pterodactyl stack for GitHub Codespaces.
+# Brings up the SAME official images used in production:
+#   - ghcr.io/pterodactyl/panel  (nginx + PHP-FPM, auto migration on boot)
+#   - mariadb, redis, ghcr.io/pterodactyl/wings (privileged, docker.sock)
+# Variables come from .codespace/.env written by scripts/codespace-up.sh.
+# This is NOT the browser mock - it is the genuine Pterodactyl application.
+#
+# Networking note: in the Codespaces Docker-in-Docker VM, direct
+# container-to-container traffic over the bridge is blackholed (the VM's
+# FORWARD path drops it; DNS over the embedded resolver still works, but TCP
+# to a sibling container IP times out). Published ports go through
+# docker-proxy on the host and DO work, so every cross-service connection
+# uses host.docker.internal -> host-gateway against a published port instead
+# of the sibling service name.
+# =============================================================================
+services:
+  database:
+    image: mariadb:10.11
+    restart: unless-stopped
+    # MariaDB already defaults to the mysql_native_password plugin that
+    # Pterodactyl expects; no command-line overrides (unknown flags made
+    # older/newer image revisions exit immediately and report unhealthy).
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: panel
+      MYSQL_USER: pterodactyl
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ${PTERO_DATA_DIR}/database:/var/lib/mysql
+    ports:
+      # Reached by the panel via host.docker.internal:3306 (docker-proxy).
+      - "3306:3306"
+    healthcheck:
+      # mariadb-admin exists in every official MariaDB image and returns
+      # success as soon as the server accepts connections.
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      # Reached by the panel via host.docker.internal:6379 (docker-proxy).
+      - "6379:6379"
+
+  panel:
+    # Official Blueprint framework image - stock panel + extension engine.
+    # Same entrypoint/env contract as ghcr.io/pterodactyl/panel.
+    image: ${BLUEPRINT_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # Codespace forwards this as https://${CODESPACE_NAME}-8080.${DOMAIN}
+      - "8080:80"
+    environment:
+      APP_URL: ${PANEL_PUBLIC_URL}
+      APP_TIMEZONE: UTC
+      APP_SERVICE_AUTHOR: ${ADMIN_EMAIL}
+      # Sibling names are unreachable over the broken bridge (see header);
+      # dial the host gateway where docker-proxy publishes the services.
+      DB_HOST: host.docker.internal
+      DB_PORT: "3306"
+      DB_PASSWORD: ${DB_PASSWORD}
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      QUEUE_DRIVER: redis
+      REDIS_HOST: host.docker.internal
+      # The panel is only ever reached through the Codespaces TLS-terminating
+      # proxy, so trust all forwarded headers (scheme, client IP). Without
+      # this the app sees plain HTTP and login/cookie handling breaks.
+      TRUSTED_PROXIES: "*"
+      MAIL_FROM: noreply@example.com
+      MAIL_DRIVER: log
+    volumes:
+      # Named volume keeps /app (framework + installed extension code) intact
+      # across container recreations; the bind mounts overlay persistent data.
+      - panel_app:/app
+      - ${PTERO_DATA_DIR}/panel/var:/app/var
+      - ${PTERO_DATA_DIR}/panel/logs:/app/storage/logs
+      # Drop .blueprint files here; the image's listener syncs them into /app.
+      - ${PTERO_DATA_DIR}/extensions:/blueprint_extensions
+
+  wings:
+    image: ghcr.io/pterodactyl/wings:latest
+    restart: unless-stopped
+    depends_on:
+      - panel
+    privileged: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # 8081 (host) -> 8080 (container): Wings API/websocket via the proxy
+      - "8081:8080"
+      - "2022:2022"
+      - "25565:25565"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ${PTERO_DATA_DIR}/wings/config:/etc/pterodactyl
+      - ${PTERO_DATA_DIR}/wings/data:/var/lib/pterodactyl
+      - ${PTERO_DATA_DIR}/wings/logs:/var/log/pterodactyl
+      - ${PTERO_DATA_DIR}/wings/tmp:/tmp/pterodactyl
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+
+# Keep an explicit, isolated subnet (mirrors the official compose) so the
+# stack never collides with the Codespace's own address pools.
+networks:
+  default:
+    name: pterodactyl_stack
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  # Holds the panel application code, Blueprint framework and installed
+  # extensions between container recreations.
+  panel_app:

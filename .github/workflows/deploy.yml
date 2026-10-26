@@ -1,0 +1,175 @@
+# =============================================================================
+# Deploy Petro Panel (Pterodactyl + Wings) onto a VPS over SSH.
+#
+# This runs on GitHub's runners, not in any local sandbox, so it has full
+# internet access to apt mirrors, get.docker.com, getcomposer.org and the
+# Pterodactyl release downloads. It connects to YOUR VPS and runs install.sh.
+#
+# One-time setup (see docs/DEPLOY-GITHUB-ACTIONS.md):
+#   Repo -> Settings -> Secrets and variables -> Actions, add:
+#     VPS_HOST        e.g. 203.0.113.10 or node.example.com
+#     VPS_USER        e.g. root  (must have passwordless sudo)
+#     VPS_SSH_KEY     private key matching an authorized_keys entry
+#     VPS_ADMIN_EMAIL admin account email for the panel
+#   Optional secrets:
+#     VPS_SSH_PORT (default 22), VPS_ADMIN_USERNAME (default admin),
+#     LETSENCRYPT_EMAIL (falls back to VPS_ADMIN_EMAIL),
+#     PANEL_URL + APPLICATION_API_KEY (only for "node" mode against an
+#     existing panel)
+#
+# Then: Actions tab -> Deploy Petro Panel -> Run workflow.
+# =============================================================================
+name: Deploy Petro Panel
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to install on the target VPS"
+        type: choice
+        options:
+          - all
+          - panel
+          - wings
+          - node
+        default: all
+      panel_fqdn:
+        description: "Panel domain, e.g. panel.example.com"
+        required: true
+        type: string
+      panel_ssl:
+        description: "Issue a Let's Encrypt certificate (domain must point at this VPS)"
+        type: boolean
+        default: true
+      node_fqdn:
+        description: "Node hostname or IP (required for all/wings/node)"
+        required: false
+        type: string
+      allocation_ip:
+        description: "IP game servers bind to (defaults to node_fqdn)"
+        required: false
+        type: string
+      allocation_ports:
+        description: "Allocation ports (list or ranges)"
+        required: false
+        type: string
+        default: "25565,25570-25575"
+      remote_dir:
+        description: "Directory on the VPS where the installer is copied"
+        required: true
+        type: string
+        default: /opt/petro
+
+concurrency:
+  group: petro-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS over SSH
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+      VPS_ADMIN_EMAIL: ${{ secrets.VPS_ADMIN_EMAIL }}
+      VPS_ADMIN_USERNAME: ${{ secrets.VPS_ADMIN_USERNAME }}
+      LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+      PANEL_URL: ${{ secrets.PANEL_URL }}
+      APPLICATION_API_KEY: ${{ secrets.APPLICATION_API_KEY }}
+    steps:
+      - name: Checkout installer
+        uses: actions/checkout@v4
+
+      - name: Validate secrets and inputs
+        run: |
+          missing=()
+          for s in VPS_HOST VPS_USER VPS_SSH_KEY VPS_ADMIN_EMAIL; do
+            if [ -z "${!s}" ]; then missing+=("$s"); fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "::error::Missing required repository secrets: ${missing[*]}"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          case "${{ inputs.mode }}" in
+            all|wings|node)
+              if [ -z "${{ inputs.node_fqdn }}" ]; then
+                echo "::error::node_fqdn input is required for mode '${{ inputs.mode }}'"
+                exit 1
+              fi ;;
+          esac
+          echo "Target $VPS_USER@$VPS_HOST mode=${{ inputs.mode }} fqdn=${{ inputs.panel_fqdn }}"
+
+      - name: Render .env for the VPS
+        run: |
+          umask 077
+          node_fqdn="${{ inputs.node_fqdn }}"
+          alloc_ip="${{ inputs.allocation_ip }}"
+          [ -n "$alloc_ip" ] || alloc_ip="$node_fqdn"
+          cat > env.deploy <<EOF
+          PANEL_FQDN="${{ inputs.panel_fqdn }}"
+          PANEL_SSL="$([[ "${{ inputs.panel_ssl }}" == "true" ]] && echo true || echo false)"
+          LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-$VPS_ADMIN_EMAIL}"
+          TIMEZONE="UTC"
+          ADMIN_USERNAME="${VPS_ADMIN_USERNAME:-admin}"
+          ADMIN_FIRSTNAME="Panel"
+          ADMIN_LASTNAME="Admin"
+          ADMIN_EMAIL="$VPS_ADMIN_EMAIL"
+          ADMIN_PASSWORD=""
+          DB_PASSWORD=""
+          LOCATION_SHORT="loc1"
+          LOCATION_LONG="Default location"
+          NODE_NAME="node-1"
+          NODE_FQDN="$node_fqdn"
+          NODE_SCHEME="https"
+          NODE_BEHIND_PROXY="false"
+          NODE_MEMORY="8192"
+          NODE_DISK="20480"
+          NODE_DAEMON_PORT="8080"
+          NODE_SFTP_PORT="2022"
+          ALLOCATION_IP="$alloc_ip"
+          ALLOCATION_PORTS="${{ inputs.allocation_ports }}"
+          PANEL_URL="${PANEL_URL:-}"
+          APPLICATION_API_KEY="${APPLICATION_API_KEY:-}"
+          EOF
+          # Secrets must never appear in the workflow log; the file is moved
+          # to .env on the VPS with mode 600 (umask set above).
+          echo "env.deploy rendered ($(wc -l < env.deploy) lines), contents hidden."
+
+      - name: Copy installer to the VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || '22' }}
+          source: "./*,./.env.example,./.gitignore"
+          target: ${{ inputs.remote_dir }}
+          overwrite: true
+
+      - name: Run installer on the VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_MODE: ${{ inputs.mode }}
+          REMOTE_DIR: ${{ inputs.remote_dir }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || '22' }}
+          command_timeout: 35m
+          script: |
+            set -Eeuo pipefail
+            cd "$REMOTE_DIR"
+            [ -f env.deploy ] && mv -f env.deploy .env
+            chmod +x install.sh
+            sudo -n true 2>/dev/null || true
+            if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
+            $SUDO ./install.sh "$DEPLOY_MODE"
+            echo
+            echo "=== Deployment finished ==="
+            echo "Generated secrets (if any) are in /root/.petro-panel.env on the VPS."
+            $SUDO test -f /root/.petro-panel.env && $SUDO sed 's/=.*/=<redacted>/' /root/.petro-panel.env || true
