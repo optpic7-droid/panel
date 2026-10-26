@@ -323,10 +323,11 @@ else
 fi
 
 echo "== codespace-errors.sh triage script =="
-if [[ -x scripts/codespace-errors.sh || -f scripts/codespace-errors.sh ]] \
-   && grep -q "laravel.log" scripts/codespace-errors.sh \
-   && grep -q "SESSION_WRITE" scripts/codespace-errors.sh; then
-    ok "errors script dumps Laravel exceptions and tests session writes"
+if [[ -f scripts/codespace-errors.sh ]] \
+   && grep -q 'laravel\*.log' scripts/codespace-errors.sh \
+   && grep -q "SESSION_WRITE" scripts/codespace-errors.sh \
+   && grep -q "auth/login" scripts/codespace-errors.sh; then
+    ok "errors script reads daily logs, tests sessions and reproduces login"
 else
     bad "codespace-errors.sh structure"
 fi
