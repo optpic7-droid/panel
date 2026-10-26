@@ -76,6 +76,18 @@ print("devcontainer json valid")
 PY
 then ok "devcontainer forwards the right ports publicly"; else bad "devcontainer"; fi
 
+echo "== codespace-up wiring =="
+if grep -q 'ALLOCATION_IP="127.0.0.1"' scripts/codespace-up.sh; then
+    ok "codespace allocations use an IP literal, not the forwarded hostname"
+else
+    bad "codespace ALLOCATION_IP must be 127.0.0.1"
+fi
+if grep -q "resolve_blueprint_image" scripts/codespace-up.sh; then
+    ok "codespace-up selects the Blueprint image"
+else
+    bad "codespace-up must use resolve_blueprint_image"
+fi
+
 echo "== helper functions =="
 CODESPACE_NAME="crispy-space-abc123"
 GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN="app.github.dev"

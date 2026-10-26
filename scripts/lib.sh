@@ -213,7 +213,14 @@ build_allocation_payload() {
     require_vars ALLOCATION_IP ALLOCATION_PORTS
     ALLOCATION_IP="$ALLOCATION_IP" ALLOCATION_ALIAS="${ALLOCATION_ALIAS:-}" \
     ALLOCATION_PORTS="$ALLOCATION_PORTS" python3 -c '
-import json, os
+import json, os, ipaddress, sys
+# The panel rejects hostnames here: fail locally with a clear message
+# instead of an opaque HTTP 400 from the API.
+alloc_ip = os.environ["ALLOCATION_IP"]
+try:
+    ipaddress.ip_address(alloc_ip)
+except ValueError:
+    sys.exit(f"ALLOCATION_IP must be an IP address, got: {alloc_ip}")
 ports = []
 for part in os.environ["ALLOCATION_PORTS"].split(","):
     part = part.strip()
@@ -222,7 +229,7 @@ for part in os.environ["ALLOCATION_PORTS"].split(","):
         ports.extend(str(p) for p in range(int(lo), int(hi) + 1))
     elif part:
         ports.append(part)
-payload = {"ip": os.environ["ALLOCATION_IP"], "ports": ports}
+payload = {"ip": alloc_ip, "ports": ports}
 if os.environ.get("ALLOCATION_ALIAS"):
     payload["alias"] = os.environ["ALLOCATION_ALIAS"]
 print(json.dumps(payload))'

@@ -124,6 +124,13 @@ assert d["ports"] == ["25565","25570","25571","25572","27015"], d'; then
 else
     bad "allocation payload: $alloc_json"
 fi
+# Hostnames are rejected locally (the panel only accepts IP literals).
+if ALLOCATION_IP="codespace-8081.app.github.dev" ALLOCATION_PORTS="25565" \
+   build_allocation_payload >/dev/null 2>&1; then
+    bad "allocation must reject hostnames as IP"
+else
+    ok "allocation rejects hostname with a clear local error"
+fi
 
 # shellcheck disable=SC1091
 source scripts/35-create-api-key.sh 2>/dev/null || true

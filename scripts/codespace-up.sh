@@ -176,7 +176,11 @@ connect_node() {
     export NODE_DISK=20480 NODE_DISK_OVERALLOCATE=0
     export NODE_UPLOAD_LIMIT=100 NODE_DAEMON_PORT=8080 NODE_SFTP_PORT=2022
     export WINGS_DATA_PATH="/var/lib/pterodactyl/volumes"
-    export ALLOCATION_IP="$NODE_FQDN" ALLOCATION_PORTS="25565"
+    # The allocations API only accepts IP literals, never hostnames. Game
+    # ports are not reachable through the Codespaces proxy anyway (TCP-only,
+    # no UDP), so bind the demo allocation to loopback; the node FQDN above
+    # stays the public forwarded hostname for panel <-> Wings traffic.
+    export ALLOCATION_IP="127.0.0.1" ALLOCATION_PORTS="25565"
 
     check_api
     ensure_location
