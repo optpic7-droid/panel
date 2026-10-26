@@ -111,6 +111,19 @@ sudo ./install.sh theme --uninstall      # roll back to stock
 Full guide, validation and backup behavior: [docs/ARIX-THEME.md](docs/ARIX-THEME.md).
 Nulled/leaked Arix copies are intentionally unsupported.
 
+## No VPS? Run the real panel in GitHub Codespaces
+
+A Codespace is a free, containerized Linux VM with Docker — enough to run the
+**genuine Pterodactyl stack** (official panel + Wings images, MariaDB, Redis):
+
+```bash
+# Open the repo in Codespaces (Code -> Codespaces), then:
+bash scripts/codespace-up.sh      # boots everything, prints panel URL + admin password
+bash scripts/codespace-down.sh    # stop (data kept) / --purge to reset
+```
+
+Full guide and limitations (auto-shutdown, not 24/7): [docs/CODESPACES.md](docs/CODESPACES.md).
+
 ## No server available? Try the demos
 
 - **Browser-only (recommended, nothing to install):** open

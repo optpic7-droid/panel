@@ -10,3 +10,6 @@ __pycache__/
 
 # Demo runtime state (regenerated on first boot)
 demo/data.json
+
+# Codespace stack runtime (env secrets, database, wings data)
+.codespace/

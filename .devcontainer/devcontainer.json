@@ -1,0 +1,18 @@
+{
+  "name": "Petro Panel (Pterodactyl in Codespaces)",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "forwardPorts": [8080, 8081, 2022],
+  "portsAttributes": {
+    "8080": { "label": "Pterodactyl Panel", "visibility": "public" },
+    "8081": { "label": "Wings API", "visibility": "public" },
+    "2022": { "label": "Wings SFTP", "visibility": "public" }
+  },
+  "postAttachCommand": "echo '\\n==> Start the real Pterodactyl stack with: bash scripts/codespace-up.sh\\n'",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

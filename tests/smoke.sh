@@ -49,6 +49,9 @@ bash tests/integration.sh
 echo "== demo server tests (runnable preview) =="
 bash tests/demo.sh
 
+echo "== codespace stack validation =="
+bash tests/codespace.sh
+
 echo "== standalone browser demo (docs/petro-demo.html) =="
 python3 - <<'PY'
 import re
