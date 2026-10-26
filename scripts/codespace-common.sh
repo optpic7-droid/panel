@@ -52,14 +52,17 @@ codespace_url() {
 }
 
 # Pick a v1 panel image tag when GHCR publishes one, otherwise :latest.
-# Keeps the stack on Pterodactyl 1.x even if the package moves to v2.
+# Keeps the stack on Pterodactyl 1.x even if the package moves to v2,
+# because the v1 and v2 images use different env vars/entrypoints.
 resolve_panel_image() {
-    local pinned="ghcr.io/pterodactyl/panel:v1.11.10"
-    if docker manifest inspect "$pinned" >/dev/null 2>&1; then
-        echo "$pinned"
-    else
-        echo "ghcr.io/pterodactyl/panel:latest"
-    fi
+    local tag
+    for tag in v1.11.10 v1.11.9 v1.11.8 v1.11.7; do
+        if docker manifest inspect "ghcr.io/pterodactyl/panel:${tag}" >/dev/null 2>&1; then
+            echo "ghcr.io/pterodactyl/panel:${tag}"
+            return 0
+        fi
+    done
+    echo "ghcr.io/pterodactyl/panel:latest"
 }
 
 compose() {

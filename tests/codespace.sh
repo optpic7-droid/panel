@@ -111,7 +111,7 @@ else
 fi
 # Hard failure when nothing is recoverable and gh is unavailable.
 if ( unset CODESPACE_NAME GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
-     # shellcheck disable=SC2123  # intentionally hide every external binary
+     # shellcheck disable=SC2123,SC2030  # intentionally hide every external binary
      PATH=/nonexistent PROC_ENVIRON=/nonexistent/environ
      # shellcheck disable=SC1091
      source scripts/codespace-common.sh
@@ -121,6 +121,40 @@ else
     ok "fails clearly outside a Codespace with no recovery path"
 fi
 rm -f "$fake_environ"
+
+echo "== resolve_panel_image pins v1 and falls back safely =="
+stub_dir=$(mktemp -d /tmp/fake-docker.XXXXXX)
+# Fake docker: manifest inspect succeeds only for the v1.11.9 tag.
+cat > "$stub_dir/docker" <<'STUB'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in
+    ghcr.io/pterodactyl/panel:v1.11.9) exit 0 ;;
+    ghcr.io/*) exit 1 ;;
+  esac
+done
+exit 1
+STUB
+chmod +x "$stub_dir/docker"
+# shellcheck disable=SC2031  # PATH override is intentionally local to the subshell
+if [[ "$(PATH="$stub_dir:$PATH" resolve_panel_image)" == "ghcr.io/pterodactyl/panel:v1.11.9" ]]; then
+    ok "picks an available v1 tag instead of :latest"
+else
+    # shellcheck disable=SC2031
+    bad "v1 tag selection: $(PATH="$stub_dir:$PATH" resolve_panel_image)"
+fi
+# Fake docker that rejects every manifest -> :latest fallback.
+cat > "$stub_dir/docker" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+# shellcheck disable=SC2031
+if [[ "$(PATH="$stub_dir:$PATH" resolve_panel_image)" == "ghcr.io/pterodactyl/panel:latest" ]]; then
+    ok "falls back to :latest when no v1 tag is published"
+else
+    bad "latest fallback failed"
+fi
+rm -rf "$stub_dir"
 
 echo
 echo "Codespace tests: ${pass} passed, ${fail} failed."

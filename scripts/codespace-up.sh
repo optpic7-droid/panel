@@ -36,10 +36,12 @@ write_env_file() {
     panel_url=$(codespace_url 8080)
     wings_url=$(codespace_url 8081)
 
+    local image
+    image=$(resolve_panel_image)
     umask 077
     cat > "$CODESPACE_ENV" <<EOF
 PTERO_DATA_DIR=${data_dir}
-PANEL_IMAGE=$(resolve_panel_image)
+PANEL_IMAGE=${image}
 PANEL_PUBLIC_URL=${panel_url}
 WINGS_PUBLIC_URL=${wings_url}
 ADMIN_EMAIL=${ADMIN_EMAIL}
@@ -48,6 +50,7 @@ DB_ROOT_PASSWORD=${db_root}
 DB_PASSWORD=${db_pass}
 EOF
     log "Environment written to ${CODESPACE_ENV}"
+    log "Using panel image: ${image}"
 }
 
 wait_for_database() {
@@ -74,10 +77,21 @@ wait_for_database() {
 
 wait_for_panel() {
     log "Waiting for the panel container to migrate and come online"
+    local cid
+    cid=$(compose ps -q panel)
     for _ in $(seq 1 90); do
         if curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:8080/"; then
             log "Panel is responding."
             return 0
+        fi
+        # Fail fast with real logs when the container is crash-looping.
+        local state restarts
+        state=$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || echo unknown)
+        restarts=$(docker inspect -f '{{.RestartCount}}' "$cid" 2>/dev/null || echo 0)
+        if [[ "$state" == "exited" || "$restarts" -ge 3 ]]; then
+            warn "Panel container is ${state} (restarts=${restarts}) - dumping logs:"
+            compose logs --tail 80 panel
+            die "Panel container failed to stay up. Fix the error above, then re-run."
         fi
         sleep 4
     done
@@ -193,9 +207,11 @@ main() {
 
     # Earlier runs under 'sudo su' can leave root-owned bind-mount directories
     # that the unprivileged Codespace user (and containers) cannot write to.
-    if [[ -d "$CODESPACE_DIR" ]] && [[ ! -w "$CODESPACE_DIR" ]]; then
-        warn "Repairing ownership of ${CODESPACE_DIR} (created under a root shell)"
-        sudo chown -R "$(id -u):$(id -g)" "$CODESPACE_DIR"
+    if [[ -d "$CODESPACE_DIR" ]]; then
+        if find "$CODESPACE_DIR" -not -user "$(id -u)" -print -quit 2>/dev/null | grep -q .; then
+            warn "Repairing ownership of ${CODESPACE_DIR} (some files were root-owned)"
+            sudo chown -R "$(id -u):$(id -g)" "$CODESPACE_DIR"
+        fi
     fi
 
     write_env_file
