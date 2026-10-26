@@ -4,6 +4,8 @@
 # Read-only diagnostics for the Codespace Pterodactyl stack. Pinpoints whether
 # the panel entrypoint's hang is DNS or TCP routing between containers.
 # Safe to run any number of times; changes nothing.
+# Single-quoted sh -c blocks intentionally expand inside the container.
+# shellcheck disable=SC2016
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,6 +78,33 @@ main() {
     echo
     echo "== 8. last 30 panel entrypoint lines =="
     compose logs --tail 30 panel || true
+
+    echo
+    echo "== 9. Laravel application exceptions (the real login/500 cause) =="
+    compose exec -T panel sh -c '
+        LOG=/app/storage/logs/laravel.log
+        if [ -f "$LOG" ]; then
+            # Print the most recent stack trace block.
+            grep -n "production.ERROR\|local.ERROR" "$LOG" | tail -3 || true
+            echo "---- tail ----"
+            tail -n 50 "$LOG"
+        else
+            echo "no laravel.log yet"; ls -la /app/storage/logs 2>/dev/null || true
+        fi
+    ' || true
+
+    echo
+    echo "== 10. session/Redis path and app key sanity =="
+    # shellcheck disable=SC2016
+    compose exec -T panel sh -c '
+        echo "-- redis TCP --"; nc -z -v -w5 host.docker.internal 6379; echo "exit=$?"
+        echo "-- session driver / app key --"
+        grep -E "^(SESSION_DRIVER|CACHE_DRIVER|APP_KEY|APP_URL)=" /app/var/.env 2>/dev/null \
+            | sed "s/APP_KEY=.*/APP_KEY=<present>/" || echo "/app/var/.env missing"
+        echo "-- redis ping from PHP --"
+        php -r "require \"/app/vendor/autoload.php\"; \$r=new Predis\\Client([\"host\"=>\"host.docker.internal\"]); echo \$r->ping(), PHP_EOL;" 2>/dev/null \
+            || echo "(predis ping unavailable - TCP result above is what matters)"
+    ' || true
 
     echo
     log "Copy EVERYTHING above and paste it back - it shows the exact failure."

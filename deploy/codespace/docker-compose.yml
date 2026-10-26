@@ -75,6 +75,10 @@ services:
       SESSION_DRIVER: redis
       QUEUE_DRIVER: redis
       REDIS_HOST: host.docker.internal
+      # The panel is only ever reached through the Codespaces TLS-terminating
+      # proxy, so trust all forwarded headers (scheme, client IP). Without
+      # this the app sees plain HTTP and login/cookie handling breaks.
+      TRUSTED_PROXIES: "*"
       MAIL_FROM: noreply@example.com
       MAIL_DRIVER: log
     volumes:

@@ -40,6 +40,7 @@ assert "6379:6379" in svc["cache"]["ports"], "redis must publish 6379"
 panel_env = svc["panel"]["environment"]
 assert panel_env["DB_HOST"] == "host.docker.internal", panel_env
 assert panel_env["REDIS_HOST"] == "host.docker.internal", panel_env
+assert panel_env["TRUSTED_PROXIES"] == "*", panel_env
 for svc_name in ("panel", "wings"):
     hosts = svc[svc_name].get("extra_hosts", [])
     assert any("host-gateway" in h for h in hosts), (svc_name, hosts)
