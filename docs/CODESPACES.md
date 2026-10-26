@@ -51,6 +51,12 @@ If a port opens with an auth prompt, use the **Ports** tab in VS Code →
 right-click → **Port Visibility → Public** (the script attempts this itself
 via `gh`).
 
+Ports 3306 (MariaDB) and 6379 (Redis) are published on the Docker VM as well,
+but only for internal container-to-container use: in the Codespaces
+Docker-in-Docker VM the bridge drops traffic between sibling containers, so
+the panel and Wings reach their dependencies through `host.docker.internal`
+(the host gateway) against those published ports, instead of service names.
+
 ## Honest limitations
 
 - **Not 24/7.** Codespaces auto-stop after ~30 minutes idle and, on GitHub

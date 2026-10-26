@@ -52,12 +52,21 @@ main() {
     ' || true
 
     echo
-    echo "== 6. TCP probes from panel (5s timeout each) =="
+    echo "== 6a. bridge probes (expected to TIME OUT in the Codespace DinD VM) =="
     # shellcheck disable=SC2016
     compose exec -T panel sh -c '
         echo "-- database:3306 --"; nc -z -v -w5 database 3306; echo "nc db exit=$?"
         echo "-- cache:6379 --";    nc -z -v -w5 cache 6379;    echo "nc redis exit=$?"
         echo "-- embedded DNS 127.0.0.11:53 --"; nc -z -v -w5 127.0.0.11 53; echo "nc dns exit=$?"
+    ' || true
+
+    echo
+    echo "== 6b. host-gateway probes (the path the stack actually uses) =="
+    # shellcheck disable=SC2016
+    compose exec -T panel sh -c '
+        echo "-- host.docker.internal -> 3306 (MariaDB) --"; nc -z -v -w5 host.docker.internal 3306; echo "exit=$?"
+        echo "-- host.docker.internal -> 6379 (Redis) --";   nc -z -v -w5 host.docker.internal 6379; echo "exit=$?"
+        echo "-- host.docker.internal -> 8080 (panel) --";   nc -z -v -w5 host.docker.internal 8080; echo "exit=$?"
     ' || true
 
     echo

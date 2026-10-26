@@ -28,6 +28,16 @@ assert svc["wings"].get("privileged") is True
 assert any("/var/run/docker.sock" in v for v in svc["wings"]["volumes"])
 assert "8080:80" in svc["panel"]["ports"]
 assert "8081:8080" in svc["wings"]["ports"]
+# Sibling containers cannot talk over the bridge in the DinD VM, so DB and
+# Redis must be published and consumed via host.docker.internal (host-gateway).
+assert "3306:3306" in svc["database"]["ports"], "db must publish 3306"
+assert "6379:6379" in svc["cache"]["ports"], "redis must publish 6379"
+panel_env = svc["panel"]["environment"]
+assert panel_env["DB_HOST"] == "host.docker.internal", panel_env
+assert panel_env["REDIS_HOST"] == "host.docker.internal", panel_env
+for svc_name in ("panel", "wings"):
+    hosts = svc[svc_name].get("extra_hosts", [])
+    assert any("host-gateway" in h for h in hosts), (svc_name, hosts)
 # MariaDB healthcheck must use an image-native command (healthcheck.sh flags
 # differ across versions and previously marked the container unhealthy).
 db_health = svc["database"]["healthcheck"]["test"]

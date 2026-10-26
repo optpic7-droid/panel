@@ -5,6 +5,14 @@
 #   - mariadb, redis, ghcr.io/pterodactyl/wings (privileged, docker.sock)
 # Variables come from .codespace/.env written by scripts/codespace-up.sh.
 # This is NOT the browser mock - it is the genuine Pterodactyl application.
+#
+# Networking note: in the Codespaces Docker-in-Docker VM, direct
+# container-to-container traffic over the bridge is blackholed (the VM's
+# FORWARD path drops it; DNS over the embedded resolver still works, but TCP
+# to a sibling container IP times out). Published ports go through
+# docker-proxy on the host and DO work, so every cross-service connection
+# uses host.docker.internal -> host-gateway against a published port instead
+# of the sibling service name.
 # =============================================================================
 services:
   database:
@@ -20,6 +28,9 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - ${PTERO_DATA_DIR}/database:/var/lib/mysql
+    ports:
+      # Reached by the panel via host.docker.internal:3306 (docker-proxy).
+      - "3306:3306"
     healthcheck:
       # mariadb-admin exists in every official MariaDB image and returns
       # success as soon as the server accepts connections.
@@ -32,6 +43,9 @@ services:
   cache:
     image: redis:7-alpine
     restart: unless-stopped
+    ports:
+      # Reached by the panel via host.docker.internal:6379 (docker-proxy).
+      - "6379:6379"
 
   panel:
     image: ${PANEL_IMAGE}
@@ -41,6 +55,8 @@ services:
         condition: service_healthy
       cache:
         condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       # Codespace forwards this as https://${CODESPACE_NAME}-8080.${DOMAIN}
       - "8080:80"
@@ -48,13 +64,15 @@ services:
       APP_URL: ${PANEL_PUBLIC_URL}
       APP_TIMEZONE: UTC
       APP_SERVICE_AUTHOR: ${ADMIN_EMAIL}
-      DB_HOST: database
+      # Sibling names are unreachable over the broken bridge (see header);
+      # dial the host gateway where docker-proxy publishes the services.
+      DB_HOST: host.docker.internal
       DB_PORT: "3306"
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_DRIVER: redis
       SESSION_DRIVER: redis
       QUEUE_DRIVER: redis
-      REDIS_HOST: cache
+      REDIS_HOST: host.docker.internal
       MAIL_FROM: noreply@example.com
       MAIL_DRIVER: log
     volumes:
@@ -67,6 +85,8 @@ services:
     depends_on:
       - panel
     privileged: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       # 8081 (host) -> 8080 (container): Wings API/websocket via the proxy
       - "8081:8080"
@@ -81,10 +101,8 @@ services:
       - ${PTERO_DATA_DIR}/wings/tmp:/tmp/pterodactyl
       - /etc/ssl/certs:/etc/ssl/certs:ro
 
-# Explicit subnet mirrors the official Pterodactyl compose. The Codespace
-# runtime already consumes parts of the default Docker address pool, which can
-# otherwise blackhole panel -> database traffic (entrypoint hangs on its
-# 'nc' database check).
+# Keep an explicit, isolated subnet (mirrors the official compose) so the
+# stack never collides with the Codespace's own address pools.
 networks:
   default:
     name: pterodactyl_stack

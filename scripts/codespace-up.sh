@@ -75,6 +75,23 @@ wait_for_database() {
     die "Database did not become healthy in time."
 }
 
+preflight_host_gateway() {
+    # The Codespace DinD VM drops bridge FORWARD traffic between sibling
+    # containers, so the panel reaches MariaDB/Redis through the host gateway
+    # via docker-proxy. Verify that path before starting the panel, whose
+    # entrypoint would otherwise hang silently on its 'nc' database check.
+    log "Probing host-gateway path to MariaDB and Redis via docker-proxy"
+    if ! compose run --rm --no-deps --entrypoint sh panel -c '
+        nc -z -v -w5 host.docker.internal 3306 || exit 1
+        nc -z -v -w5 host.docker.internal 6379 || exit 1
+    '; then
+        compose logs --tail 20 database cache || true
+        die "Cannot reach database/redis through host.docker.internal.
+Run 'bash scripts/codespace-debug.sh' and send its output."
+    fi
+    log "MariaDB and Redis are reachable through host.docker.internal."
+}
+
 wait_for_panel() {
     log "Waiting for the panel container to migrate and come online"
     local cid ticks=0
@@ -170,9 +187,9 @@ connect_node() {
     source "$CODESPACE_ENV"
     api_call GET "/nodes/${NODE_ID}/configuration" \
         | python3 "${SCRIPT_DIR}/render-config.py" "${PTERO_DATA_DIR}/wings/config/config.yml"
-    # Wings talks to the panel over the private compose network, not the
-    # authenticated public proxy, so point 'remote' at the panel service.
-    sed -i 's|^remote: .*|remote: "http://panel:80"|' "${PTERO_DATA_DIR}/wings/config/config.yml"
+    # Direct bridge traffic to sibling containers is dropped in this DinD VM;
+    # Wings reaches the panel through the host gateway on the published port.
+    sed -i 's|^remote: .*|remote: "http://host.docker.internal:8080"|' "${PTERO_DATA_DIR}/wings/config/config.yml"
 
     compose up -d wings
 }
@@ -226,6 +243,7 @@ main() {
     log "Starting database, cache and panel (first run pulls ~1 GB of images)"
     compose up -d database cache
     wait_for_database
+    preflight_host_gateway
     compose up -d panel
     wait_for_panel
     create_admin
