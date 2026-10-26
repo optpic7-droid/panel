@@ -225,6 +225,7 @@ ${C_BOLD}================ Pterodactyl is running in this Codespace =============
   Logs     : bash scripts/codespace-down.sh --logs
   Stop     : bash scripts/codespace-down.sh
   Reset pw : bash scripts/codespace-passwd.sh 'YourNewPassword'
+  New acc : bash scripts/codespace-user.sh create --admin   # self sign-up, you pick the password
   Add-ons  : bash scripts/codespace-extension.sh list
              bash scripts/codespace-extension.sh theme      (free Darkenate dark theme)
              bash scripts/codespace-extension.sh install <file.blueprint|url>

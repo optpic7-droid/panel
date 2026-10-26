@@ -93,6 +93,25 @@ bash scripts/codespace-passwd.sh 'MyNewPass123'  # chosen password
 
 The value is updated inside the panel and persisted to `.codespace/.env`.
 
+## Creating your own account
+
+Stock Pterodactyl has no public registration page (the only sign-up extension
+on GitHub targets Pterodactyl 2.0, which this 1.x stack cannot run), so
+accounts are self-created with a helper that prompts for the credentials you
+choose:
+
+```bash
+bash scripts/codespace-user.sh create              # interactive, regular user
+bash scripts/codespace-user.sh create --admin      # interactive, administrator
+bash scripts/codespace-user.sh promote <username> # grant admin to an existing user
+bash scripts/codespace-user.sh demote  <username>
+bash scripts/codespace-user.sh list
+```
+
+`create` validates the username/email shape and enforces an 8-character
+minimum password; `--admin` sets `root_admin` on the new account immediately,
+so the resulting login has full administrator access.
+
 ## Honest limitations
 
 - **Not 24/7.** Codespaces auto-stop after ~30 minutes idle and, on GitHub

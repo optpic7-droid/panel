@@ -297,6 +297,31 @@ else
 fi
 rm -f "$fake_bad"
 
+echo "== codespace-user.sh validation helpers =="
+# shellcheck disable=SC1091
+source scripts/codespace-user.sh
+if validate_username "ajay.kumar_1" && validate_username "Ajay-123" && ! validate_username "ab" \
+   && ! validate_username "bad name" && ! validate_username "weird@user"; then
+    ok "username rules (3-32 chars, allowed charset)"
+else
+    bad "validate_username"
+fi
+if validate_email "ajay@example.com" && ! validate_email "nope" && ! validate_email "a@b"; then
+    ok "email shape validation"
+else
+    bad "validate_email"
+fi
+if validate_password "12345678" && ! validate_password "short"; then
+    ok "password minimum length (8)"
+else
+    bad "validate_password"
+fi
+if grep -q "p:user:make" scripts/codespace-user.sh && grep -q "root_admin" scripts/codespace-user.sh; then
+    ok "user script uses artisan make and root_admin promotion"
+else
+    bad "user script internals"
+fi
+
 echo
 echo "Codespace tests: ${pass} passed, ${fail} failed."
 exit "$fail"

@@ -125,6 +125,7 @@ bash scripts/codespace-down.sh     # stop (data kept) / --purge to reset
 bash scripts/codespace-extension.sh theme                 # free Darkenate dark theme
 bash scripts/codespace-extension.sh install ./addon.blueprint  # any licensed .blueprint (Arix etc.)
 bash scripts/codespace-passwd.sh 'YourPassword'           # set admin password yourself
+bash scripts/codespace-user.sh create --admin             # self sign-up: pick your own admin login
 ```
 
 Full guide and limitations (auto-shutdown, not 24/7): [docs/CODESPACES.md](docs/CODESPACES.md).
