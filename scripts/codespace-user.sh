@@ -76,12 +76,25 @@ create_user() {
     [[ -n "$first" && -n "$last" ]] || die "first and last name are required."
 
     if [[ -z "$password" ]]; then
+        # Re-prompt in place on a bad password so the rest of the entered
+        # details are not lost on a typo or a too-short value.
         local confirm
-        read -r -s -p "Password (min 8 chars, hidden): " password; echo
-        read -r -s -p "Confirm password: " confirm; echo
-        [[ "$password" == "$confirm" ]] || die "passwords did not match - nothing was created."
+        while true; do
+            read -r -s -p "Password (min 8 chars; typing stays hidden): " password; echo
+            if ! validate_password "$password"; then
+                warn "password must be at least 8 characters - try again."
+                password=""; continue
+            fi
+            read -r -s -p "Confirm password: " confirm; echo
+            if [[ "$password" != "$confirm" ]]; then
+                warn "passwords did not match - try again."
+                password=""; continue
+            fi
+            break
+        done
+    else
+        validate_password "$password" || die "password must be at least 8 characters."
     fi
-    validate_password "$password" || die "password must be at least 8 characters."
 
     log "Creating account '${username}' (admin: $([[ $make_admin -eq 1 ]] && echo yes || echo no))"
     compose exec -T panel php artisan p:user:make \
