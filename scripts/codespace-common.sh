@@ -8,12 +8,38 @@ CODESPACE_DIR="${CODESPACE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CODESPACE_ENV="${CODESPACE_DIR}/.env"
 COMPOSE_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/deploy/codespace/docker-compose.yml"
 
+# /proc/1/environ is read by the recovery test with a temp file override.
+PROC_ENVIRON="${PROC_ENVIRON:-/proc/1/environ}"
+
 require_codespace() {
-    if [[ -z "${CODESPACE_NAME:-}" || -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+    # 'sudo su' / 'sudo -i' reset the environment and drop the Codespace
+    # variables. PID 1 keeps the original environment and is readable by
+    # root, so recover from there before giving up.
+    if [[ -z "${CODESPACE_NAME:-}" && -r "$PROC_ENVIRON" ]]; then
+        local recovered
+        recovered=$(tr '\0' '\n' < "$PROC_ENVIRON" | sed -n 's/^CODESPACE_NAME=//p')
+        [[ -n "$recovered" ]] && export CODESPACE_NAME="$recovered"
+        recovered=$(tr '\0' '\n' < "$PROC_ENVIRON" | sed -n 's/^GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=//p')
+        [[ -n "$recovered" ]] && export GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN="$recovered"
+    fi
+    : "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:=app.github.dev}"
+
+    # Last resort: ask gh for one of the account's codespaces.
+    if [[ -z "${CODESPACE_NAME:-}" ]] && command -v gh >/dev/null 2>&1; then
+        local picked
+        picked=$(gh codespace list --json name -q '.[0].name' 2>/dev/null || true)
+        [[ -n "$picked" ]] && export CODESPACE_NAME="$picked"
+    fi
+
+    if [[ -z "${CODESPACE_NAME:-}" ]]; then
         cat >&2 <<'EOF'
-[error] This command must run inside a GitHub Codespace (CODESPACE_NAME is unset).
-        Open the repo in Codespaces: Code -> Codespaces -> Create codespace,
-        then run: bash scripts/codespace-up.sh
+[error] CODESPACE_NAME is unset and could not be recovered.
+        Easiest fix: type `exit` to leave the root shell (sudo su strips
+        Codespace variables) and run `bash scripts/codespace-up.sh` as the
+        normal Codespace user. Docker does not need sudo in Codespaces.
+        Manual alternative:
+          export CODESPACE_NAME=<name>     # see: gh codespace list
+          export GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=app.github.dev
 EOF
         exit 1
     fi

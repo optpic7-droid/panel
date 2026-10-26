@@ -72,6 +72,50 @@ else
 fi
 rm -f /tmp/cs-env-test
 
+echo "== require_codespace recovery (sudo su strips env vars) =="
+# Build a fake PID-1 environment file (NUL-separated, like /proc/*/environ).
+fake_environ=$(mktemp /tmp/fake-environ.XXXXXX)
+{
+    printf 'CODESPACE_NAME=crispy-recovery-abc\0'
+    printf 'GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=app.github.dev\0'
+    printf 'OTHER_VAR=keepme\0'
+} > "$fake_environ"
+if ( unset CODESPACE_NAME GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+     PROC_ENVIRON="$fake_environ"
+     # shellcheck disable=SC1091
+     source scripts/codespace-common.sh
+     require_codespace
+     [[ "$CODESPACE_NAME" == "crispy-recovery-abc" ]] \
+       && [[ "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" == "app.github.dev" ]] ); then
+    ok "recovers CODESPACE_NAME from PID 1 environment after sudo su"
+else
+    bad "PID-1 environment recovery"
+fi
+# Default forwarding domain when only CODESPACE_NAME is recoverable.
+if ( unset CODESPACE_NAME GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+     printf 'CODESPACE_NAME=only-name-xyz\0' > "$fake_environ"
+     PROC_ENVIRON="$fake_environ"
+     # shellcheck disable=SC1091
+     source scripts/codespace-common.sh
+     require_codespace
+     [[ "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" == "app.github.dev" ]] ); then
+    ok "defaults forwarding domain to app.github.dev"
+else
+    bad "default forwarding domain"
+fi
+# Hard failure when nothing is recoverable and gh is unavailable.
+if ( unset CODESPACE_NAME GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+     # shellcheck disable=SC2123  # intentionally hide every external binary
+     PATH=/nonexistent PROC_ENVIRON=/nonexistent/environ
+     # shellcheck disable=SC1091
+     source scripts/codespace-common.sh
+     require_codespace ) >/dev/null 2>&1; then
+    bad "require_codespace should fail without any recoverable identity"
+else
+    ok "fails clearly outside a Codespace with no recovery path"
+fi
+rm -f "$fake_environ"
+
 echo
 echo "Codespace tests: ${pass} passed, ${fail} failed."
 exit "$fail"
