@@ -233,16 +233,33 @@ fake_bp=$(mktemp /tmp/fake-ext.XXXXXX.blueprint)
 python3 - "$fake_bp" <<'PY'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1], "w") as z:
-    z.writestr("conf.yml", 'name: "Test"\nidentifier: Darkenate\ntarget: panel\n')
+    z.writestr("conf.yml", 'name: "Test"\nidentifier: RootLevel\ntarget: panel\n')
 PY
 # shellcheck disable=SC1091
 source scripts/codespace-extension.sh 2>/dev/null || true
-if [[ "$(extension_identifier "$fake_bp" 2>/dev/null)" == "Darkenate" ]]; then
-    ok "extracts the identifier from a .blueprint archive"
+if [[ "$(extension_identifier "$fake_bp" 2>/dev/null)" == "RootLevel" ]]; then
+    ok "extracts a root-level identifier from a .blueprint archive"
 else
-    bad "extension_identifier"
+    bad "extension_identifier (root level)"
 fi
 rm -f "$fake_bp"
+# Real Darkenate layout: identifier nested under 'info:' with quotes.
+fake_nested=$(mktemp /tmp/fake-nested.XXXXXX.blueprint)
+python3 - "$fake_nested" <<'PY'
+import sys, zipfile
+conf = ('info:\n  name: "Darkenate"\n  identifier: "darkenate"\n'
+        '  version: "v2.0.3"\n  target: "beta-2026-01"\n')
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    z.writestr("conf.yml", conf)
+    z.writestr("assets/icon.jpg", "x")
+PY
+if [[ "$(extension_identifier "$fake_nested" 2>/dev/null)" == "darkenate" ]] \
+   && [[ "$(extension_target "$fake_nested" 2>/dev/null)" == "beta-2026-01" ]]; then
+    ok "parses nested info.identifier and target (Darkenate layout)"
+else
+    bad "nested conf.yml parse: $(extension_identifier "$fake_nested" 2>&1)"
+fi
+rm -f "$fake_nested"
 # Corrupt archive must fail loudly instead of returning an empty identifier.
 fake_bad=$(mktemp /tmp/bad-ext.XXXXXX.blueprint)
 echo "not a zip" > "$fake_bad"

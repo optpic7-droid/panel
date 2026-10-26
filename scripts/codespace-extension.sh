@@ -21,6 +21,8 @@ source "${SCRIPT_DIR}/lib.sh"
 source "${SCRIPT_DIR}/codespace-common.sh"
 
 # Read the Blueprint identifier from a .blueprint zip (conf.yml inside).
+# Real-world archives nest the field under 'info:' (e.g. Darkenate), so match
+# an indented key and stay dependency-free (no PyYAML needed at runtime).
 extension_identifier() {
     local file=$1
     python3 - "$file" <<'PY'
@@ -34,10 +36,26 @@ try:
         text = z.read(conf).decode("utf-8", "replace")
 except (OSError, zipfile.BadZipFile) as exc:
     sys.exit(f"not a valid .blueprint archive: {exc}")
-m = re.search(r"^identifier:\s*['\"]?([A-Za-z0-9_\-]+)", text, re.M)
+m = re.search(r"^\s*identifier:\s*['\"]?([A-Za-z0-9_\-]+)['\"]?\s*$", text, re.M)
 if not m:
     sys.exit("conf.yml has no 'identifier' field")
 print(m.group(1))
+PY
+}
+
+# Read the Blueprint framework version an extension targets, for logging.
+extension_target() {
+    local file=$1
+    python3 - "$file" <<'PY'
+import sys, zipfile, re
+try:
+    with zipfile.ZipFile(sys.argv[1]) as z:
+        conf = next((n for n in z.namelist() if n.endswith("conf.yml")), None)
+        text = z.read(conf).decode("utf-8", "replace") if conf else ""
+except (OSError, zipfile.BadZipFile):
+    sys.exit(1)
+m = re.search(r"^\s*target:\s*['\"]?([^'\"\s]+)", text, re.M)
+print(m.group(1) if m else "unspecified")
 PY
 }
 
@@ -68,7 +86,7 @@ install_extension() {
     fi
 
     ident=$(extension_identifier "$file") || die "$ident"
-    log "Extension identifier: ${ident}"
+    log "Extension identifier: ${ident} (target: $(extension_target "$file" 2>/dev/null || echo unknown))"
 
     # The image's inotify listener also syncs this folder, but copying
     # directly makes installation deterministic and immediate.
