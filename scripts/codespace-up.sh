@@ -26,7 +26,7 @@ ADMIN_LASTNAME="${ADMIN_LASTNAME:-Admin}"
 write_env_file() {
     mkdir -p "$CODESPACE_DIR"
     local data_dir="${CODESPACE_DIR}/data"
-    mkdir -p "$data_dir"/{database,panel/var,panel/logs,wings/config,wings/data,wings/logs,wings/tmp}
+    mkdir -p "$data_dir"/{database,panel/var,panel/logs,extensions,wings/config,wings/data,wings/logs,wings/tmp}
     chmod 700 "$CODESPACE_DIR"
 
     local db_root db_pass admin_pass panel_url wings_url
@@ -37,10 +37,11 @@ write_env_file() {
     wings_url=$(codespace_url 8081)
 
     local image
-    image=$(resolve_panel_image)
+    image=$(resolve_blueprint_image)
     umask 077
     cat > "$CODESPACE_ENV" <<EOF
 PTERO_DATA_DIR=${data_dir}
+BLUEPRINT_IMAGE=${image}
 PANEL_IMAGE=${image}
 PANEL_PUBLIC_URL=${panel_url}
 WINGS_PUBLIC_URL=${wings_url}
@@ -50,7 +51,7 @@ DB_ROOT_PASSWORD=${db_root}
 DB_PASSWORD=${db_pass}
 EOF
     log "Environment written to ${CODESPACE_ENV}"
-    log "Using panel image: ${image}"
+    log "Using Blueprint panel image: ${image}"
 }
 
 wait_for_database() {
@@ -219,6 +220,10 @@ ${C_BOLD}================ Pterodactyl is running in this Codespace =============
   Credentials are also stored in: ${CODESPACE_ENV}
   Logs     : bash scripts/codespace-down.sh --logs
   Stop     : bash scripts/codespace-down.sh
+  Reset pw : bash scripts/codespace-passwd.sh 'YourNewPassword'
+  Add-ons  : bash scripts/codespace-extension.sh list
+             bash scripts/codespace-extension.sh theme      (free Darkenate dark theme)
+             bash scripts/codespace-extension.sh install <file.blueprint|url>
 ${C_BOLD}=========================================================================${C_RESET}
 EOF
 }

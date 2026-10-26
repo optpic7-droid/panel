@@ -114,12 +114,17 @@ Nulled/leaked Arix copies are intentionally unsupported.
 ## No VPS? Run the real panel in GitHub Codespaces
 
 A Codespace is a free, containerized Linux VM with Docker — enough to run the
-**genuine Pterodactyl stack** (official panel + Wings images, MariaDB, Redis):
+**genuine Pterodactyl stack** with the **Blueprint extension framework**
+baked in (official `blueprintframework/blueprint` image, MariaDB, Redis,
+Wings):
 
 ```bash
 # Open the repo in Codespaces (Code -> Codespaces), then:
-bash scripts/codespace-up.sh      # boots everything, prints panel URL + admin password
-bash scripts/codespace-down.sh    # stop (data kept) / --purge to reset
+bash scripts/codespace-up.sh       # boots everything, prints panel URL + admin password
+bash scripts/codespace-down.sh     # stop (data kept) / --purge to reset
+bash scripts/codespace-extension.sh theme                 # free Darkenate dark theme
+bash scripts/codespace-extension.sh install ./addon.blueprint  # any licensed .blueprint (Arix etc.)
+bash scripts/codespace-passwd.sh 'YourPassword'           # set admin password yourself
 ```
 
 Full guide and limitations (auto-shutdown, not 24/7): [docs/CODESPACES.md](docs/CODESPACES.md).

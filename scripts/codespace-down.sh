@@ -29,11 +29,13 @@ main() {
 
     if [[ "${1:-}" == "--purge" ]]; then
         log "Purging all panel/node data under ${CODESPACE_DIR}/data"
+        # Remove the named /app volume (framework + installed extensions).
+        compose down -v
         # Root may own the data when an earlier run happened after 'sudo su':
         # try normal removal first, then escalate for root-owned leftovers.
         rm -rf "${CODESPACE_DIR}/data" 2>/dev/null || sudo rm -rf "${CODESPACE_DIR}/data"
         rm -f "$CODESPACE_ENV" 2>/dev/null || sudo rm -f "$CODESPACE_ENV"
-        warn "All database contents, servers and credentials were deleted."
+        warn "All database contents, servers, extensions and credentials were deleted."
     else
         log "Data preserved in ${CODESPACE_DIR}/data - re-run codespace-up.sh to resume."
     fi

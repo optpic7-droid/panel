@@ -22,12 +22,17 @@ svc = c["services"]
 for name in ("database", "cache", "panel", "wings"):
     assert name in svc, f"missing service {name}"
 assert "mariadb" in svc["database"]["image"]
-assert "pterodactyl/panel" in svc["panel"]["image"] or "${PANEL_IMAGE}" in svc["panel"]["image"]
+# Panel runs the official Blueprint framework image (stock panel + extensions).
+assert "${BLUEPRINT_IMAGE}" in svc["panel"]["image"], svc["panel"]["image"]
 assert "pterodactyl/wings" in svc["wings"]["image"]
 assert svc["wings"].get("privileged") is True
 assert any("/var/run/docker.sock" in v for v in svc["wings"]["volumes"])
 assert "8080:80" in svc["panel"]["ports"]
 assert "8081:8080" in svc["wings"]["ports"]
+# Extension drop-folder and persistent /app named volume.
+assert any("/blueprint_extensions" in v for v in svc["panel"]["volumes"]), svc["panel"]["volumes"]
+assert "panel_app:/app" in svc["panel"]["volumes"]
+assert "panel_app" in c["volumes"]
 # Sibling containers cannot talk over the bridge in the DinD VM, so DB and
 # Redis must be published and consumed via host.docker.internal (host-gateway).
 assert "3306:3306" in svc["database"]["ports"], "db must publish 3306"
@@ -49,10 +54,13 @@ assert "--default-authentication-plugin" not in str(svc["database"]), "remove un
 net = c["networks"]["default"]["ipam"]["config"][0]["subnet"]
 assert net == "172.20.0.0/16", net
 assert c["networks"]["default"]["name"] == "pterodactyl_stack"
-# all host bind paths stay inside PTERO_DATA_DIR (no writes outside the repo)
+# all host bind paths stay inside PTERO_DATA_DIR (no writes outside the repo);
+# entries without a slash are named Docker volumes, not host bind mounts.
 for s in svc.values():
     for v in s.get("volumes", []):
         host = v.split(":")[0]
+        if "/" not in host:
+            continue
         assert host.startswith("${PTERO_DATA_DIR}") or host.startswith("/var/run") or host.startswith("/var/lib/docker") or host.startswith("/etc/ssl"), host
 print("compose structure valid")
 PY
@@ -170,6 +178,68 @@ else
     bad "latest fallback failed"
 fi
 rm -rf "$stub_dir"
+
+echo "== resolve_blueprint_image prefers 1.11.x then known framework tags =="
+stub_dir=$(mktemp -d /tmp/fake-docker.XXXXXX)
+cat > "$stub_dir/docker" <<'STUB'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in
+    ghcr.io/blueprintframework/blueprint:v1.15.2) exit 0 ;;
+    ghcr.io/*) exit 1 ;;
+  esac
+done
+exit 1
+STUB
+chmod +x "$stub_dir/docker"
+# shellcheck disable=SC2031
+if [[ "$(PATH="$stub_dir:$PATH" resolve_blueprint_image)" == "ghcr.io/blueprintframework/blueprint:v1.15.2" ]]; then
+    ok "skips unavailable 1.11.x tags and picks a published framework image"
+else
+    bad "blueprint resolver: $(PATH="$stub_dir:$PATH" resolve_blueprint_image)"
+fi
+cat > "$stub_dir/docker" <<'STUB'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in
+    ghcr.io/blueprintframework/blueprint:v1.11.10) exit 0 ;;
+    ghcr.io/*) exit 1 ;;
+  esac
+done
+exit 1
+STUB
+# shellcheck disable=SC2031
+if [[ "$(PATH="$stub_dir:$PATH" resolve_blueprint_image)" == "ghcr.io/blueprintframework/blueprint:v1.11.10" ]]; then
+    ok "prefers blueprint v1.11.10 when it exists"
+else
+    bad "blueprint 1.11 preference failed"
+fi
+rm -rf "$stub_dir"
+
+echo "== extension_identifier reads conf.yml from a .blueprint zip =="
+fake_bp=$(mktemp /tmp/fake-ext.XXXXXX.blueprint)
+python3 - "$fake_bp" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    z.writestr("conf.yml", 'name: "Test"\nidentifier: Darkenate\ntarget: panel\n')
+PY
+# shellcheck disable=SC1091
+source scripts/codespace-extension.sh 2>/dev/null || true
+if [[ "$(extension_identifier "$fake_bp" 2>/dev/null)" == "Darkenate" ]]; then
+    ok "extracts the identifier from a .blueprint archive"
+else
+    bad "extension_identifier"
+fi
+rm -f "$fake_bp"
+# Corrupt archive must fail loudly instead of returning an empty identifier.
+fake_bad=$(mktemp /tmp/bad-ext.XXXXXX.blueprint)
+echo "not a zip" > "$fake_bad"
+if extension_identifier "$fake_bad" >/dev/null 2>&1; then
+    bad "corrupt .blueprint should be rejected"
+else
+    ok "rejects a corrupt .blueprint archive"
+fi
+rm -f "$fake_bad"
 
 echo
 echo "Codespace tests: ${pass} passed, ${fail} failed."

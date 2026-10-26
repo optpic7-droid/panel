@@ -48,7 +48,9 @@ services:
       - "6379:6379"
 
   panel:
-    image: ${PANEL_IMAGE}
+    # Official Blueprint framework image - stock panel + extension engine.
+    # Same entrypoint/env contract as ghcr.io/pterodactyl/panel.
+    image: ${BLUEPRINT_IMAGE}
     restart: unless-stopped
     depends_on:
       database:
@@ -76,8 +78,13 @@ services:
       MAIL_FROM: noreply@example.com
       MAIL_DRIVER: log
     volumes:
+      # Named volume keeps /app (framework + installed extension code) intact
+      # across container recreations; the bind mounts overlay persistent data.
+      - panel_app:/app
       - ${PTERO_DATA_DIR}/panel/var:/app/var
       - ${PTERO_DATA_DIR}/panel/logs:/app/storage/logs
+      # Drop .blueprint files here; the image's listener syncs them into /app.
+      - ${PTERO_DATA_DIR}/extensions:/blueprint_extensions
 
   wings:
     image: ghcr.io/pterodactyl/wings:latest
@@ -110,3 +117,8 @@ networks:
     ipam:
       config:
         - subnet: 172.20.0.0/16
+
+volumes:
+  # Holds the panel application code, Blueprint framework and installed
+  # extensions between container recreations.
+  panel_app:

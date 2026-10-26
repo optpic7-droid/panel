@@ -57,6 +57,42 @@ Docker-in-Docker VM the bridge drops traffic between sibling containers, so
 the panel and Wings reach their dependencies through `host.docker.internal`
 (the host gateway) against those published ports, instead of service names.
 
+## Themes and extensions (Blueprint)
+
+The panel runs the official **Blueprint framework** image
+(`ghcr.io/blueprintframework/blueprint`, built from the matching Pterodactyl
+panel image) — Pterodactyl's open-source extension engine. Themes, version
+changers and plugin managers are all installed as `.blueprint` archives:
+
+```bash
+bash scripts/codespace-extension.sh list                       # installed add-ons
+bash scripts/codespace-extension.sh theme                      # free Darkenate dark theme (MIT)
+bash scripts/codespace-extension.sh install ./Arix.blueprint   # a licensed add-on you own
+bash scripts/codespace-extension.sh install https://example.test/x.blueprint
+bash scripts/codespace-extension.sh remove Darkenate
+```
+
+Archives are kept in `.codespace/data/extensions` (mounted at
+`/blueprint_extensions`) and the framework's listener syncs them into the
+panel; a named Docker volume preserves installed extension code across
+restarts.
+
+**Arix** is commercial software (arix.gg / BuiltByBit). Buy it, download the
+`.blueprint` file, and install it with the `install` command above. This repo
+never downloads nulled/leaked add-ons — they are a common source of stolen
+API keys and backdoors. A "version changer / plugin installer" for
+Pterodactyl 1.x is likewise just another `.blueprint` from the Blueprint
+marketplace; the v2-only `.pteroext` format is not compatible with this stack.
+
+## Admin password
+
+```bash
+bash scripts/codespace-passwd.sh                 # random new password
+bash scripts/codespace-passwd.sh 'MyNewPass123'  # chosen password
+```
+
+The value is updated inside the panel and persisted to `.codespace/.env`.
+
 ## Honest limitations
 
 - **Not 24/7.** Codespaces auto-stop after ~30 minutes idle and, on GitHub

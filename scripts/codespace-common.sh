@@ -65,6 +65,24 @@ resolve_panel_image() {
     echo "ghcr.io/pterodactyl/panel:latest"
 }
 
+# Official Blueprint framework image (BlueprintFramework/framework-docker).
+# It is built FROM the matching ghcr.io/pterodactyl/panel tag with the
+# extension framework, node/yarn and the /blueprint_extensions auto-sync
+# baked in - a drop-in replacement that keeps the stock entrypoint.
+# Tags mirror panel versions; prefer a 1.11.x image, then known current
+# framework builds, then :latest.
+resolve_blueprint_image() {
+    local tag
+    for tag in v1.11.10 v1.11.9 v1.11.8 v1.11.7 \
+               v1.15.2 v1.15.1 v1.15.0 v1.14.1 v1.14.0; do
+        if docker manifest inspect "ghcr.io/blueprintframework/blueprint:${tag}" >/dev/null 2>&1; then
+            echo "ghcr.io/blueprintframework/blueprint:${tag}"
+            return 0
+        fi
+    done
+    echo "ghcr.io/blueprintframework/blueprint:latest"
+}
+
 compose() {
     docker compose --env-file "$CODESPACE_ENV" -f "$COMPOSE_FILE" "$@"
 }
