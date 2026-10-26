@@ -147,7 +147,8 @@ fi
 # Hard failure when nothing is recoverable and gh is unavailable.
 if ( unset CODESPACE_NAME GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
      # shellcheck disable=SC2123,SC2030  # intentionally hide every external binary
-     PATH=/nonexistent PROC_ENVIRON=/nonexistent/environ
+     # shellcheck disable=SC2125  # glob stays literal here, expands in the for loop
+     PATH=/nonexistent PROC_ENVIRON=/nonexistent/environ PROC_SCAN_GLOB=/nonexistent/[0-9]*/environ
      # shellcheck disable=SC1091
      source scripts/codespace-common.sh
      require_codespace ) >/dev/null 2>&1; then
@@ -156,6 +157,31 @@ else
     ok "fails clearly outside a Codespace with no recovery path"
 fi
 rm -f "$fake_environ"
+
+echo "== full /proc scan recovery (PID 1 lacks the Codespace vars) =="
+fake_proc=$(mktemp -d /tmp/fake-proc.XXXXXX)
+# PID 1 environ with no Codespace identity (the reported failure mode).
+mkdir -p "$fake_proc/1" "$fake_proc/422"
+printf 'PATH=/usr/bin\0HOME=/root\0' > "$fake_proc/1/environ"
+# A long-lived agent process still carries the original container env.
+{
+    printf 'CODESPACE_NAME=disreputable-toad-abc\0'
+    printf 'GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=app.github.dev\0'
+} > "$fake_proc/422/environ"
+if ( unset CODESPACE_NAME GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+     PROC_ENVIRON="$fake_proc/1/environ"
+     # shellcheck disable=SC2125  # glob expands inside recover_env_var's for loop
+     PROC_SCAN_GLOB="$fake_proc/[0-9]*/environ"
+     # shellcheck disable=SC1091
+     source scripts/codespace-common.sh
+     require_codespace
+     [[ "$CODESPACE_NAME" == "disreputable-toad-abc" ]] \
+       && [[ "$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN" == "app.github.dev" ]] ); then
+    ok "recovers Codespace identity from any process after sudo su"
+else
+    bad "full /proc scan recovery"
+fi
+rm -rf "$fake_proc"
 
 echo "== resolve_panel_image pins v1 and falls back safely =="
 stub_dir=$(mktemp -d /tmp/fake-docker.XXXXXX)

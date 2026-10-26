@@ -10,24 +10,57 @@ COMPOSE_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/deploy/codespace/
 
 # /proc/1/environ is read by the recovery test with a temp file override.
 PROC_ENVIRON="${PROC_ENVIRON:-/proc/1/environ}"
+# Glob used for the full process scan; overridable in offline tests.
+PROC_SCAN_GLOB="${PROC_SCAN_GLOB:-/proc/[0-9]*/environ}"
+
+# Find an environment variable inside any running process's initial
+# environment. Works from a stripped 'sudo su' root shell because long-lived
+# Codespace processes (agent, VS Code server) keep CODESPACE_NAME even though
+# the new root shell does not.
+recover_env_var() {
+    local key=$1 envfile val
+    # Fast path: PID 1 first.
+    if [[ -r "$PROC_ENVIRON" ]]; then
+        val=$(tr '\0' '\n' < "$PROC_ENVIRON" 2>/dev/null | sed -n "s/^${key}=//p" | head -1)
+        [[ -n "$val" ]] && { echo "$val"; return 0; }
+    fi
+    # Full scan of every readable process environment.
+    for envfile in $PROC_SCAN_GLOB; do
+        [[ -r "$envfile" ]] || continue
+        val=$(tr '\0' '\n' < "$envfile" 2>/dev/null | sed -n "s/^${key}=//p" | head -1)
+        if [[ -n "$val" ]]; then
+            echo "$val"
+            return 0
+        fi
+    done
+    return 1
+}
 
 require_codespace() {
     # 'sudo su' / 'sudo -i' reset the environment and drop the Codespace
-    # variables. PID 1 keeps the original environment and is readable by
-    # root, so recover from there before giving up.
-    if [[ -z "${CODESPACE_NAME:-}" && -r "$PROC_ENVIRON" ]]; then
+    # variables. Recover them from running processes before giving up.
+    if [[ -z "${CODESPACE_NAME:-}" ]]; then
         local recovered
-        recovered=$(tr '\0' '\n' < "$PROC_ENVIRON" | sed -n 's/^CODESPACE_NAME=//p')
-        [[ -n "$recovered" ]] && export CODESPACE_NAME="$recovered"
-        recovered=$(tr '\0' '\n' < "$PROC_ENVIRON" | sed -n 's/^GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=//p')
-        [[ -n "$recovered" ]] && export GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN="$recovered"
+        recovered=$(recover_env_var CODESPACE_NAME) && export CODESPACE_NAME="$recovered"
+    fi
+    if [[ -z "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
+        local recovered_domain
+        recovered_domain=$(recover_env_var GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN) \
+            && export GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN="$recovered_domain"
     fi
     : "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:=app.github.dev}"
 
-    # Last resort: ask gh for one of the account's codespaces.
+    # Last resort: ask gh, running as the original Codespace user when we are
+    # root (root's own ~/.config/gh has no GitHub token in a Codespace).
     if [[ -z "${CODESPACE_NAME:-}" ]] && command -v gh >/dev/null 2>&1; then
-        local picked
+        local picked orig_user
         picked=$(gh codespace list --json name -q '.[0].name' 2>/dev/null || true)
+        if [[ -z "$picked" ]]; then
+            orig_user="${SUDO_USER:-$(stat -c '%U' /workspaces 2>/dev/null || true)}"
+            if [[ -n "$orig_user" && "$orig_user" != "root" ]]; then
+                picked=$(sudo -u "$orig_user" gh codespace list --json name -q '.[0].name' 2>/dev/null || true)
+            fi
+        fi
         [[ -n "$picked" ]] && export CODESPACE_NAME="$picked"
     fi
 
@@ -35,8 +68,8 @@ require_codespace() {
         cat >&2 <<'EOF'
 [error] CODESPACE_NAME is unset and could not be recovered.
         Easiest fix: type `exit` to leave the root shell (sudo su strips
-        Codespace variables) and run `bash scripts/codespace-up.sh` as the
-        normal Codespace user. Docker does not need sudo in Codespaces.
+        Codespace variables) and run the command again as the normal
+        Codespace user. Docker does not need sudo in Codespaces.
         Manual alternative:
           export CODESPACE_NAME=<name>     # see: gh codespace list
           export GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN=app.github.dev
