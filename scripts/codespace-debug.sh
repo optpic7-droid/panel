@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
 # scripts/codespace-debug.sh
-# One-shot diagnostics for the Codespace Pterodactyl stack. Safe, read-only:
-# shows container state, panel entrypoint progress and tests the panel->DB
-# network path from INSIDE the panel container (the usual failure point).
+# Read-only diagnostics for the Codespace Pterodactyl stack. Pinpoints whether
+# the panel entrypoint's hang is DNS or TCP routing between containers.
+# Safe to run any number of times; changes nothing.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,42 +22,54 @@ main() {
     compose ps -a || true
 
     echo
-    echo "== 2. panel image in use =="
-    echo "$PANEL_IMAGE"
+    echo "== 2. panel image and DB env seen by the panel container =="
+    echo "image: $PANEL_IMAGE"
+    compose exec -T panel sh -c 'env | grep -E "^(DB_HOST|DB_PORT|REDIS_HOST)=" | sort' || true
 
     echo
-    echo "== 3. last 40 panel entrypoint lines =="
-    compose logs --tail 40 panel || true
+    echo "== 3. network: subnet, gateway and container IPs =="
+    docker network inspect pterodactyl_stack \
+        -f 'subnet={{range .IPAM.Config}}{{.Subnet}} gw={{.Gateway}}{{end}}' 2>/dev/null || true
+    docker network inspect pterodactyl_stack \
+        -f '{{range .Containers}}{{.Name}} -> {{.IPv4Address}}{{println}}{{end}}' 2>/dev/null || true
 
-    echo
-    echo "== 4. tools available inside the panel container =="
-    compose exec -T panel sh -c 'command -v nc || echo "nc MISSING"; command -v php || echo "php MISSING"' || true
-
-    echo
-    echo "== 5. DNS + TCP path panel -> database:3306 =="
-    # shellcheck disable=SC2016  # expansion must happen inside the container
+    echo "== 4. panel container DNS config and routing table =="
+    # shellcheck disable=SC2016
     compose exec -T panel sh -c '
-        echo "-- DNS lookup of service name --"
-        (getent hosts database || nslookup database 2>/dev/null || ping -c1 -W2 database 2>&1 | head -2) || echo "DNS FAILED"
-        echo "-- TCP probe --"
-        if command -v nc >/dev/null; then
-            nc -z -v -w5 database 3306; echo "nc exit=$?"
-        else
-            php -r "\$f=@fsockopen(\"database\",3306,\$e,\$s,5); echo \$f?\"TCP OK\n\":\"TCP FAIL: \$s\n\";"
-        fi
+        echo "-- /etc/resolv.conf --"; cat /etc/resolv.conf
+        echo "-- routes --"; (ip route || route -n || cat /proc/net/route) 2>/dev/null
+        echo "-- tools --"; command -v nc || echo "nc MISSING"; command -v getent || echo "getent MISSING"
     ' || true
 
     echo
-    echo "== 6. MariaDB databases and users (from the DB container) =="
-    compose exec -T database mariadb -uroot -p"$DB_ROOT_PASSWORD" \
-        -e "SHOW DATABASES; SELECT user,host FROM mysql.user;" 2>&1 | sed 's/^/  /' || true
+    echo "== 5. name resolution inside panel =="
+    # shellcheck disable=SC2016
+    compose exec -T panel sh -c '
+        for name in database cache; do
+            echo "-- getent hosts $name --"
+            getent hosts "$name" || echo "DNS FAIL for $name"
+        done
+    ' || true
 
     echo
-    echo "== 7. can the panel container reach the web port locally? =="
-    compose exec -T panel sh -c 'wget -qO- -T5 http://127.0.0.1/ >/dev/null && echo "internal nginx OK" || echo "internal nginx not ready"' || true
+    echo "== 6. TCP probes from panel (5s timeout each) =="
+    # shellcheck disable=SC2016
+    compose exec -T panel sh -c '
+        echo "-- database:3306 --"; nc -z -v -w5 database 3306; echo "nc db exit=$?"
+        echo "-- cache:6379 --";    nc -z -v -w5 cache 6379;    echo "nc redis exit=$?"
+        echo "-- embedded DNS 127.0.0.11:53 --"; nc -z -v -w5 127.0.0.11 53; echo "nc dns exit=$?"
+    ' || true
 
     echo
-    log "Send the full output above if the stack is still failing."
+    echo "== 7. what is listening inside the database container =="
+    compose exec -T database sh -c '(netstat -ltn 2>/dev/null || ss -ltn 2>/dev/null) | grep -E "3306|LISTEN"' || true
+
+    echo
+    echo "== 8. last 30 panel entrypoint lines =="
+    compose logs --tail 30 panel || true
+
+    echo
+    log "Copy EVERYTHING above and paste it back - it shows the exact failure."
 }
 
 main "$@"
