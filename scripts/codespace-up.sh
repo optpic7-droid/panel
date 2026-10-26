@@ -77,9 +77,9 @@ wait_for_database() {
 
 wait_for_panel() {
     log "Waiting for the panel container to migrate and come online"
-    local cid
+    local cid ticks=0
     cid=$(compose ps -q panel)
-    for _ in $(seq 1 90); do
+    for _ in $(seq 1 120); do
         if curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:8080/"; then
             log "Panel is responding."
             return 0
@@ -91,13 +91,18 @@ wait_for_panel() {
         if [[ "$state" == "exited" || "$restarts" -ge 3 ]]; then
             warn "Panel container is ${state} (restarts=${restarts}) - dumping logs:"
             compose logs --tail 80 panel
-            die "Panel container failed to stay up. Fix the error above, then re-run."
+            die "Panel container failed to stay up. Run 'bash scripts/codespace-debug.sh' for full diagnostics."
+        fi
+        # Surface entrypoint progress (migrations can take a minute on first boot).
+        ticks=$((ticks + 1))
+        if (( ticks % 5 == 0 )); then
+            compose logs --tail 3 panel 2>/dev/null | sed 's/^/    [panel] /' || true
         fi
         sleep 4
     done
     compose logs --tail 40 database || true
     compose logs --tail 40 panel
-    die "Panel did not become ready within ~6 minutes (see logs above)."
+    die "Panel did not become ready within ~8 minutes (see logs above)."
 }
 
 create_admin() {

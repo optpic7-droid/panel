@@ -80,3 +80,15 @@ services:
       - ${PTERO_DATA_DIR}/wings/logs:/var/log/pterodactyl
       - ${PTERO_DATA_DIR}/wings/tmp:/tmp/pterodactyl
       - /etc/ssl/certs:/etc/ssl/certs:ro
+
+# Explicit subnet mirrors the official Pterodactyl compose. The Codespace
+# runtime already consumes parts of the default Docker address pool, which can
+# otherwise blackhole panel -> database traffic (entrypoint hangs on its
+# 'nc' database check).
+networks:
+  default:
+    name: pterodactyl_stack
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

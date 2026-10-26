@@ -34,6 +34,11 @@ db_health = svc["database"]["healthcheck"]["test"]
 assert any("mariadb-admin" in part for part in db_health), db_health
 assert "start_period" in svc["database"]["healthcheck"]
 assert "--default-authentication-plugin" not in str(svc["database"]), "remove unsupported db flag"
+# Explicit isolated subnet so the stack does not collide with Codespace's
+# internal Docker address pools.
+net = c["networks"]["default"]["ipam"]["config"][0]["subnet"]
+assert net == "172.20.0.0/16", net
+assert c["networks"]["default"]["name"] == "pterodactyl_stack"
 # all host bind paths stay inside PTERO_DATA_DIR (no writes outside the repo)
 for s in svc.values():
     for v in s.get("volumes", []):
