@@ -322,6 +322,15 @@ else
     bad "user script internals"
 fi
 
+echo "== codespace-errors.sh triage script =="
+if [[ -x scripts/codespace-errors.sh || -f scripts/codespace-errors.sh ]] \
+   && grep -q "laravel.log" scripts/codespace-errors.sh \
+   && grep -q "SESSION_WRITE" scripts/codespace-errors.sh; then
+    ok "errors script dumps Laravel exceptions and tests session writes"
+else
+    bad "codespace-errors.sh structure"
+fi
+
 echo
 echo "Codespace tests: ${pass} passed, ${fail} failed."
 exit "$fail"
