@@ -190,6 +190,14 @@ EOF
 main() {
     require_codespace
     command -v docker >/dev/null || die "Docker is not available in this Codespace."
+
+    # Earlier runs under 'sudo su' can leave root-owned bind-mount directories
+    # that the unprivileged Codespace user (and containers) cannot write to.
+    if [[ -d "$CODESPACE_DIR" ]] && [[ ! -w "$CODESPACE_DIR" ]]; then
+        warn "Repairing ownership of ${CODESPACE_DIR} (created under a root shell)"
+        sudo chown -R "$(id -u):$(id -g)" "$CODESPACE_DIR"
+    fi
+
     write_env_file
     # shellcheck disable=SC1090
     source "$CODESPACE_ENV"

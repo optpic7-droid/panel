@@ -29,8 +29,17 @@ main() {
 
     if [[ "${1:-}" == "--purge" ]]; then
         log "Purging all panel/node data under ${CODESPACE_DIR}/data"
-        rm -rf "${CODESPACE_DIR}/data"
-        rm -f "$CODESPACE_ENV"
+        # Root may own the data when an earlier run happened after 'sudo su'.
+        if [[ -e "${CODESPACE_DIR}/data" && ! -w "${CODESPACE_DIR}/data" ]]; then
+            sudo rm -rf "${CODESPACE_DIR}/data"
+        else
+            rm -rf "${CODESPACE_DIR}/data"
+        fi
+        if [[ -e "$CODESPACE_ENV" && ! -w "$CODESPACE_ENV" ]]; then
+            sudo rm -f "$CODESPACE_ENV"
+        else
+            rm -f "$CODESPACE_ENV"
+        fi
         warn "All database contents, servers and credentials were deleted."
     else
         log "Data preserved in ${CODESPACE_DIR}/data - re-run codespace-up.sh to resume."
