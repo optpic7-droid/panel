@@ -50,6 +50,28 @@ EOF
     log "Environment written to ${CODESPACE_ENV}"
 }
 
+wait_for_database() {
+    log "Waiting for MariaDB to become healthy"
+    local cid
+    cid=$(compose ps -q database)
+    for _ in $(seq 1 60); do
+        local status
+        status=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)
+        if [[ "$status" == "healthy" ]]; then
+            log "MariaDB is healthy."
+            return 0
+        fi
+        if [[ "$status" == "unhealthy" || "$status" == "exited" ]]; then
+            warn "Database reported ${status} - recent logs:"
+            compose logs --tail 40 database || true
+            die "Fix the database error above, then re-run. If the data dir is half-initialized, reset it with: bash scripts/codespace-down.sh --purge"
+        fi
+        sleep 3
+    done
+    compose logs --tail 40 database || true
+    die "Database did not become healthy in time."
+}
+
 wait_for_panel() {
     log "Waiting for the panel container to migrate and come online"
     for _ in $(seq 1 90); do
@@ -59,6 +81,7 @@ wait_for_panel() {
         fi
         sleep 4
     done
+    compose logs --tail 40 database || true
     compose logs --tail 40 panel
     die "Panel did not become ready within ~6 minutes (see logs above)."
 }
@@ -172,7 +195,9 @@ main() {
     source "$CODESPACE_ENV"
 
     log "Starting database, cache and panel (first run pulls ~1 GB of images)"
-    compose up -d database cache panel
+    compose up -d database cache
+    wait_for_database
+    compose up -d panel
     wait_for_panel
     create_admin
     create_api_key

@@ -28,6 +28,12 @@ assert svc["wings"].get("privileged") is True
 assert any("/var/run/docker.sock" in v for v in svc["wings"]["volumes"])
 assert "8080:80" in svc["panel"]["ports"]
 assert "8081:8080" in svc["wings"]["ports"]
+# MariaDB healthcheck must use an image-native command (healthcheck.sh flags
+# differ across versions and previously marked the container unhealthy).
+db_health = svc["database"]["healthcheck"]["test"]
+assert any("mariadb-admin" in part for part in db_health), db_health
+assert "start_period" in svc["database"]["healthcheck"]
+assert "--default-authentication-plugin" not in str(svc["database"]), "remove unsupported db flag"
 # all host bind paths stay inside PTERO_DATA_DIR (no writes outside the repo)
 for s in svc.values():
     for v in s.get("volumes", []):
